@@ -22,11 +22,11 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
- * 匿名内部类工具类，主要解决匿名内部类对象隐式引用外部类对象而引发的内存泄漏问题,需要注册匿名内部类代理类  <br/>
- * 已经实现的默认匿名内部类代理类有：                                                                <br/>
- * @see SimpleInnerClassProxyClassForRunnable Runnable接口的代理类                                 <br/>
- * @see SimpleInnerClassProxyClassForHandler Handler类的代理类                                    <br/>
- * @see SimpleInnerClassProxyClassForBroadcastReceiver BroadcastReceiver接口的代理类              <br/>
+ * 匿名内部类工具类，主要解决匿名内部类对象隐式引用外部类对象而引发的内存泄漏问题,需要注册匿名内部类代理类  
+ * 已经实现的默认匿名内部类代理类有：                                                                
+ * @see SimpleInnerClassProxyClassForRunnable Runnable接口的代理类                                 
+ * @see SimpleInnerClassProxyClassForHandler Handler类的代理类                                    
+ * @see SimpleInnerClassProxyClassForBroadcastReceiver BroadcastReceiver接口的代理类              
  */
 public class InnerClassHelper {
     ////www.jianshu.com/p/9335c15c43cf
@@ -208,27 +208,28 @@ public class InnerClassHelper {
     }
 
     /**
-     * 清空匿名内部类默认的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，    <br/>
+     * 清空匿名内部类默认的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
      * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
-     * @param innerClassInstance
+     * @param innerClassInstance 匿名内部类对象
      */
     public static void clearInnerClassInstanceDefaultImplicitReferences(Object innerClassInstance){
         clearInnerClassInstanceImplicitReferences(innerClassInstance,DefaultImplicitReferenceChecker);
     }
 
     /**
-     * 清空匿名内部类所有的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，    <br/>
+     * 清空匿名内部类所有的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
      * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
-     * @param innerClassInstance
+     * @param innerClassInstance 匿名内部类对象
      */
     public static void clearInnerClassInstanceAllImplicitReferences(Object innerClassInstance){
         clearInnerClassInstanceImplicitReferences(innerClassInstance,null);
     }
 
     /**
-     * 清除匿名内部类的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，    <br/>
+     * 清除匿名内部类的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，    
      * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
-     * @param innerClassInstance
+     * @param innerClassInstance 匿名内部类对象
+     * @param implicitReferenceChecker 隐式引用属性检测器
      */
     public static void clearInnerClassInstanceImplicitReferences(Object innerClassInstance,ImplicitReferenceChecker implicitReferenceChecker){
         if(innerClassInstance != null){
@@ -255,10 +256,10 @@ public class InnerClassHelper {
      * 创建匿名内部类对象的代理类对象
      * @param innerClassInstance 创建匿名内部类对象
      * @param proxyClass   匿名内部类对象的代理类 传空将使用默认注册的
-     * @param isDelayCheck 设置是否需要延迟检测,如果设置成true,则必须在匿名内部类执行可能导致内存溢出的代码执行之前调用一次 InnerClassTarget<T>.notifyNeedCheck()方法
+     * @param isDelayCheck 设置是否需要延迟检测,如果设置成true,则必须在匿名内部类执行可能导致内存溢出的代码执行之前调用一次 InnerClassTarget.notifyNeedCheck()方法
      * @param implicitReferenceChecker 设置匿名内部类对象隐式引用属性检测器
-     * @param <T>
-     * @return
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
+     * @return 匿名内部类对象的代理类对象
      */
     public  static <T> T createProxyInnerClassInstance(T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
         initLoopThread();
@@ -312,8 +313,8 @@ public class InnerClassHelper {
 
     /**
      * 注册匿名内部类代理类
-     * @param proxyClass
-     * @param <T>
+     * @param proxyClass 匿名内部类代理类，必须实现InnerClassTarget接口
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
      */
     public static <T> void registerSupperClassOfInnerClassProxyClass(Class<? extends T> proxyClass){
         proxyClassMap.put(findCommonSuperClass(null,proxyClass).getName(),proxyClass);
@@ -323,8 +324,8 @@ public class InnerClassHelper {
 
     /**
      * 清除匿名内部类代理类
-     * @param proxyClass
-     * @param <T>
+     * @param proxyClass 匿名内部类代理类，必须实现InnerClassTarget接口
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
      */
     public static <T> void unregisterSupperClassOfInnerClassProxyClass(Class<? extends T> proxyClass){
         proxyClassMap.remove(findCommonSuperClass(null,proxyClass).getName());
@@ -559,30 +560,30 @@ public class InnerClassHelper {
     public static abstract class ImplicitReferenceChecker{
         /**
          * 判断匿名内部类对象的隐式属性是否需要防止内存泄漏
-         * @param field
-         * @param innerClassInstance
-         * @return
+         * @param field   匿名内部类对象的隐式属性
+         * @param innerClassInstance  匿名内部类对象
+         * @return 判断是否需要过滤
          */
         public abstract boolean isNeedFilter(Field field,Object innerClassInstance);
 
         /**
          * 检测匿名内部类对象所引用的对象是否已经被销毁了
-         * @param fields
-         * @param innerClassInstance
-         * @return
+         * @param fields   匿名内部类对象的隐式属性
+         * @param innerClassInstance 匿名内部类对象
+         * @return 判断是否已经被销毁
          */
         public abstract boolean checkImplicitReferenceDestroyed(List<Field> fields,Object innerClassInstance);
     }
 
     /**
      * 匿名内部类代理类实现接口
-     * @param <T>
+     * @param <T> 匿名内部类对象的父类或者父接口
      */
     //https://github.com/BryanSharp/hibeaver java字节码修改神器
     public  interface InnerClassTarget<T>{
         /**
          * 获取匿名内部类对象
-         * @return
+         * @return 匿名内部类对象
          */
         T getInnerClassInstance();
 
@@ -593,31 +594,31 @@ public class InnerClassHelper {
 
         /**
          * 设置匿名内部类隐式引用属性
-         * @param fields
+         * @param fields 匿名内部类隐式引用属性
          */
         void setImplicitReferenceFields(List<Field> fields);
 
         /**
          * 获取匿名内部类隐式引用属性
-         * @return
+         * @return 匿名内部类隐式引用属性
          */
         List<Field> getImplicitReferenceFields();
 
         /**
          * 设置匿名内部类隐式引用属性检测器
-         * @param implicitReferenceChecker
+         * @param implicitReferenceChecker 匿名内部类隐式引用属性检测器
          */
         void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker);
 
         /**
          * 获取匿名内部类隐式引用属性检测器
-         * @return
+         * @return 匿名内部类隐式引用属性检测器
          */
         ImplicitReferenceChecker getImplicitReferenceChecker();
 
         /***
          * 设置延迟检测任务
-         * @param delayTask
+         * @param delayTask 延迟检测任务
          */
         void setDelayCheckTask(Runnable delayTask);
 

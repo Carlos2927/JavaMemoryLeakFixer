@@ -52,8 +52,8 @@ public class ThirdPartySDKStaticFieldReleaseHelper {
 
     /**
      * 在Application.onCreate()中调用
-     * @param className
-     * @param filedFilter
+     * @param className 监控的类名
+     * @param filedFilter 静态属性过滤器
      */
     public static void addWatchTargetClass(String className,FieldFilter filedFilter){
         if(filedFilter == null){
@@ -85,6 +85,7 @@ public class ThirdPartySDKStaticFieldReleaseHelper {
 
     /**
      * 在Application.onCreate()中调用
+     * @param cls 要监控的类
      */
     public static void watchClassStaticFields(Class cls){
         addWatchTargetClass(cls.getName(),null);
@@ -92,8 +93,8 @@ public class ThirdPartySDKStaticFieldReleaseHelper {
 
     /**
      * 在Application.onCreate()中调用
-     * @param cls
-     * @param fieldFilter
+     * @param cls 要监控的类
+     * @param fieldFilter 静态属性过滤器
      */
     public static void watchClassStaticFields(Class cls,FieldFilter fieldFilter){
         addWatchTargetClass(cls.getName(),fieldFilter);
@@ -101,7 +102,7 @@ public class ThirdPartySDKStaticFieldReleaseHelper {
 
     /**
      * 在合适的地方(如Activity.onDestroy()中)释放静态属性引用的资源
-     * @param cls
+     * @param cls 正在监控的类
      */
     public static void releaseWatchedClassStaticFields(Class cls){
         releaseWatchedClassStaticFields(cls.getName());
@@ -109,7 +110,7 @@ public class ThirdPartySDKStaticFieldReleaseHelper {
 
     /**
      * 在合适的地方(如Activity.onDestroy()中)释放静态属性引用的资源
-     * @param clsName
+     * @param clsName 正在监控的类
      */
     public static void releaseWatchedClassStaticFields(String clsName){
         List<Field> fieldList = staticFieldHolder.get(clsName);

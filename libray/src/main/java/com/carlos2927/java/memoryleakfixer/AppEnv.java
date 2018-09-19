@@ -21,14 +21,13 @@ public class AppEnv {
         }
     }.call();
 
-    public static final boolean HasAndroidSupportLibraryV4 = IsInAndroidPlatform && new MyCallable<Boolean>(){
+    public static final boolean HasAndroidSupportLibraryV4 = new MyCallable<Boolean>(){
         @Override
         public Boolean call() {
             try {
                 Class.forName("android.support.v4.app.FragmentActivity");
-                return true;
+                return IsInAndroidPlatform ;
             }catch (Exception e){
-
             }
             return false;
         }
