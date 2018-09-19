@@ -1,0 +1,1 @@
+include ':androidDemo', ':libray', ':javaDemo'
