@@ -5,7 +5,7 @@ import android.os.Build;
 public class AppEnv {
     //https://blog.csdn.net/zhuhai__yizhi/article/details/76208800
     //在JavaMemoryLeakFix源码中测试androidDemo请在使用之前设置 System.setProperty("IsUseInJavaMemoryLeakFixSourceTest","true");
-    final static boolean IsUseInJavaMemoryLeakFixSourceTest = "true".equals(System.getProperty("IsUseInJavaMemoryLeakFixSourceTest","false"));
+    //final static boolean IsUseInJavaMemoryLeakFixSourceTest = "true".equals(System.getProperty("IsUseInJavaMemoryLeakFixSourceTest","false"));
     /**
      * 检测是否在android环境
      */
