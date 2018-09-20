@@ -54,7 +54,7 @@ artifacts {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    compileOnly 'com.github.Carlos2927:AndroidHook:v1.0.0'
+    compileOnly 'com.github.Carlos2927:AndroidHook:v1.1.0'
 }
 
 sourceCompatibility = "1.7"
