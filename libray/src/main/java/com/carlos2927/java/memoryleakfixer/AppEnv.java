@@ -3,21 +3,27 @@ package com.carlos2927.java.memoryleakfixer;
 import android.os.Build;
 
 public class AppEnv {
+    //https://blog.csdn.net/zhuhai__yizhi/article/details/76208800
+    //在JavaMemoryLeakFix源码中测试androidDemo请在使用之前设置 System.setProperty("IsUseInJavaMemoryLeakFixSourceTest","true");
+    final static boolean IsUseInJavaMemoryLeakFixSourceTest = "true".equals(System.getProperty("IsUseInJavaMemoryLeakFixSourceTest","false"));
     /**
      * 检测是否在android环境
      */
     public static final boolean IsInAndroidPlatform = new MyCallable<Boolean>(){
         @Override
         public Boolean call() {
+            boolean isInAndroid = false;
             try {
                 Class.forName("android.system.Os");
                 Class.forName("android.os.Process");
+                Class cls = Class.forName("android.os.Build$VERSION");
                 // Minimum compatibility  Android 2.3
-                return Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD;
+//                isInAndroid =  Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD; // in java class file,Build.VERSION.SDK_INT will be replace 0 from AndroidHook Library
+                isInAndroid =  cls.getDeclaredField("SDK_INT").getInt(null) >= Build.VERSION_CODES.GINGERBREAD;
             }catch (Exception e){
-
+                e.printStackTrace();
             }
-            return false;
+            return isInAndroid;
         }
     }.call();
 
@@ -26,7 +32,7 @@ public class AppEnv {
         public Boolean call() {
             try {
                 Class.forName("android.support.v4.app.FragmentActivity");
-                return IsInAndroidPlatform ;
+                return IsInAndroidPlatform;
             }catch (Exception e){
             }
             return false;
@@ -50,7 +56,7 @@ public class AppEnv {
     }.call();
 
     public static final int LibVersionCode = 1;
-    public static final String LibVersion = "v1.0";
+    public static final String LibVersion = "v1.0.0";
 
     /**
      * InnerClassHelper.InnerClassTargetList列表无数据时循环检测线程休眠时间
