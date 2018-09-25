@@ -133,6 +133,9 @@ public class InnerClassHelper {
                                     e.printStackTrace();
                                 }
                             }
+                            if(!isRunning){
+                                break;
+                            }
                             //first,try to release all the instances of innerclass
                             try {
                                 for(WeakReference<InnerClassTarget> innerClassTargetWeakReference:InnerClassTargetList){
@@ -169,16 +172,20 @@ public class InnerClassHelper {
                                 toDelete.clear();
                                 Log.d(TAG,String.format("%s[@%x] InnerClassTargetList size: %d,cleared: %d",getName(),hashCode,InnerClassTargetList.size(),size));
                             }
-                            //then,try to release all the static field
-                            Collection<Watchable> watchables =  JavaMemoryLeakFixer.ClassWatchers.values();
-                            for(Watchable watchable:watchables){
-                                try {
-                                    if(watchable != null){
-                                        watchable.watch();
+                            if(isRunning){
+                                //then,try to release all the static field
+                                Collection<Watchable> watchables =  JavaMemoryLeakFixer.ClassWatchers.values();
+                                for(Watchable watchable:watchables){
+                                    try {
+                                        if(watchable != null){
+                                            watchable.watch();
+                                        }
+                                    }catch (Exception e){
+                                        e.printStackTrace();
                                     }
-                                }catch (Exception e){
-                                    e.printStackTrace();
                                 }
+                            }else {
+                                break;
                             }
                             try {
                                 lock.wait(InnerClassHelperLoopCheckingThread_FindEmptyDuration*2);
@@ -428,18 +435,27 @@ public class InnerClassHelper {
     }
 
     private static final ImplicitReferenceChecker DefaultImplicitReferenceChecker = new ImplicitReferenceChecker(){
+        Class cls_v4_fragment;
         @Override
         public boolean isNeedFilter(Field field,Object innerClassInstance) {
             if(innerClassInstance != null && field != null){
                 try {
+                    if(AppEnv.HasAndroidSupportLibraryV4 && cls_v4_fragment == null){
+                        try {
+                            cls_v4_fragment = Class.forName("android.support.v4.app.Fragment");
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                    }
                     field.setAccessible(true);
                     Object obj = field.get(innerClassInstance);
                     if(obj != null){
                         Class type = field.getType();
                         if(AppEnv.IsInAndroidPlatform){
                             if(View.class.isAssignableFrom(type) || Context.class.isAssignableFrom(type)
-                                    || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type)) || (AppEnv.HasAndroidSupportLibraryV4 && android.support.v4.app.Fragment.class.isAssignableFrom(type))
-                                    || Dialog.class.isAssignableFrom(type) || PopupWindow.class.isAssignableFrom(type)){
+                                    || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type))
+                                    || Dialog.class.isAssignableFrom(type) || PopupWindow.class.isAssignableFrom(type)
+                                    || (cls_v4_fragment !=null  && cls_v4_fragment.isAssignableFrom(type))){
                                 return true;
                             }
                         }else {
@@ -505,18 +521,22 @@ public class InnerClassHelper {
                                     }
                                 }
                             }
-                        }else if(AppEnv.HasAndroidSupportLibraryV4 && android.support.v4.app.Fragment.class.isAssignableFrom(type)){
-                            android.support.v4.app.Fragment fragment = (android.support.v4.app.Fragment) f.get(innerClassInstance);
-                            if(fragment == null || fragment.isRemoving() || fragment.isDetached()){
-                                return true;
-                            }
-                            context = fragment.getContext();
-                            if(context == null){
-                                return true;
-                            }
-                            Activity activity = fragment.getActivity();
-                            if (isActivityDestroyed(activity)) {
-                                return true;
+                        }else if(cls_v4_fragment !=null  && cls_v4_fragment.isAssignableFrom(type)){
+                            Object fragment =  f.get(innerClassInstance);
+                            try {
+                                if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_v4_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_v4_fragment,"isDetached").invoke(fragment)){
+                                    return true;
+                                }
+                                context = (Context) JavaReflectUtils.getMethod(cls_v4_fragment,"getContext").invoke(fragment);
+                                if(context == null){
+                                    return true;
+                                }
+                                Activity activity = (Activity) JavaReflectUtils.getMethod(cls_v4_fragment,"getActivity").invoke(fragment);
+                                if (isActivityDestroyed(activity)) {
+                                    return true;
+                                }
+                            }catch (Exception e){
+                                e.printStackTrace();
                             }
 
                         }else if(Dialog.class.isAssignableFrom(type)){

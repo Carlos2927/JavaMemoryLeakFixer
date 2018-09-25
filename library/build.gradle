@@ -54,7 +54,8 @@ artifacts {
 
 dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
-    compileOnly 'com.github.Carlos2927:MockAndroidForJava:v0.0.1'
+    compileOnly 'com.github.Carlos2927:MockAndroidForJava:v0.0.2'
+//    compileOnly 'com.android.support:appcompat-v7:27.1.1'
 }
 
 sourceCompatibility = "1.7"
