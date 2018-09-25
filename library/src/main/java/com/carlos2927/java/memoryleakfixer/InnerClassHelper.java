@@ -18,6 +18,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 
@@ -32,9 +33,7 @@ public class InnerClassHelper {
     ////www.jianshu.com/p/9335c15c43cf
 
     private static final String TAG = "InnerClassHelper";
-    private static final int SYNTHETIC = 0x00001000;
-    private static final int FINAL = 0x00000010;
-    private static final int SYNTHETIC_AND_FINAL = SYNTHETIC | FINAL;
+
     private static final HashMap<String,Class> proxyClassMap = new HashMap<>();
     private static final LruCache<String,List<Field>> InnerClassHolderCache = new LruCache<String,List<Field>>(64){
         @Override
@@ -46,7 +45,6 @@ public class InnerClassHelper {
     private static boolean isRunning = false;
     private static final Object lock = new Object();
 
-    private static boolean checkModifier(int mod) { return (mod & SYNTHETIC_AND_FINAL) == SYNTHETIC_AND_FINAL; }
 //    public static Object getExternalClass(Object target) throws NoSuchFieldException {
 //        return getField(target, null, null);
 //    }
@@ -74,7 +72,7 @@ public class InnerClassHelper {
         if(fields != null && fields.length>0){
             ArrayList<Field> fieldArrayList = new ArrayList<>();
             for(Field f:fields){
-                if(checkModifier(f.getModifiers())){
+                if(JavaReflectUtils.checkModifierIfSynthetic(f.getModifiers())){
                     fieldArrayList.add(f);
                 }
             }
@@ -88,7 +86,7 @@ public class InnerClassHelper {
     /**
      * 手动检查释放需要释放匿名内部类对象（可以在Activity.onDestroy()中调用）
      */
-    public static void startCheckInnerClassInstanceIfNeedRelease(){
+    static void tryToWatch(){
         synchronized (lock){
             lock.notifyAll();
         }
@@ -97,7 +95,7 @@ public class InnerClassHelper {
     /**
      * 应用退出时调用(释放占用资源)
      */
-    public static void release(){
+    static void release(){
         synchronized (lock){
             isRunning = false;
             proxyClassMap.clear();
@@ -106,7 +104,7 @@ public class InnerClassHelper {
         }
     }
 
-    private static void initLoopThread(){
+    static void initLoopThread(){
         if(!isRunning){
             Thread thread = new Thread(){
                 @Override
@@ -135,29 +133,34 @@ public class InnerClassHelper {
                                     e.printStackTrace();
                                 }
                             }
-                            for(WeakReference<InnerClassTarget> innerClassTargetWeakReference:InnerClassTargetList){
-                                if(innerClassTargetWeakReference.get() == null){
-                                    innerClassTargetWeakReference.clear();
-                                    toDelete.add(innerClassTargetWeakReference);
-                                }else {
-                                    InnerClassTarget innerClassTarget = innerClassTargetWeakReference.get();
-                                    Object innerClassInstance = innerClassTarget.getInnerClassInstance();
-                                    if(innerClassInstance != null){
-                                        ImplicitReferenceChecker implicitReferenceChecker = innerClassTarget.getImplicitReferenceChecker();
-                                        if(implicitReferenceChecker != null){
-                                            List<Field> fields = innerClassTarget.getImplicitReferenceFields();
-                                            if(fields != null && implicitReferenceChecker.checkImplicitReferenceDestroyed(fields,innerClassInstance)){
-                                                toDelete.add(innerClassTargetWeakReference);
-                                                innerClassTarget.clearInnerClassInstance();
-                                                innerClassTargetWeakReference.clear();
-                                            }
-                                        }
-                                    }else {
-                                        innerClassTarget.clearInnerClassInstance();
-                                        toDelete.add(innerClassTargetWeakReference);
+                            //first,try to release all the instances of innerclass
+                            try {
+                                for(WeakReference<InnerClassTarget> innerClassTargetWeakReference:InnerClassTargetList){
+                                    if(innerClassTargetWeakReference.get() == null){
                                         innerClassTargetWeakReference.clear();
+                                        toDelete.add(innerClassTargetWeakReference);
+                                    }else {
+                                        InnerClassTarget innerClassTarget = innerClassTargetWeakReference.get();
+                                        Object innerClassInstance = innerClassTarget.getInnerClassInstance();
+                                        if(innerClassInstance != null){
+                                            ImplicitReferenceChecker implicitReferenceChecker = innerClassTarget.getImplicitReferenceChecker();
+                                            if(implicitReferenceChecker != null){
+                                                List<Field> fields = innerClassTarget.getImplicitReferenceFields();
+                                                if(fields != null && implicitReferenceChecker.checkImplicitReferenceDestroyed(fields,innerClassInstance)){
+                                                    toDelete.add(innerClassTargetWeakReference);
+                                                    innerClassTarget.clearInnerClassInstance();
+                                                    innerClassTargetWeakReference.clear();
+                                                }
+                                            }
+                                        }else {
+                                            innerClassTarget.clearInnerClassInstance();
+                                            toDelete.add(innerClassTargetWeakReference);
+                                            innerClassTargetWeakReference.clear();
+                                        }
                                     }
                                 }
+                            }catch (Exception e){
+                                e.printStackTrace();
                             }
 
                             int size = toDelete.size();
@@ -165,6 +168,17 @@ public class InnerClassHelper {
                                 InnerClassTargetList.removeAll(toDelete);
                                 toDelete.clear();
                                 Log.d(TAG,String.format("%s[@%x] InnerClassTargetList size: %d,cleared: %d",getName(),hashCode,InnerClassTargetList.size(),size));
+                            }
+                            //then,try to release all the static field
+                            Collection<Watchable> watchables =  JavaMemoryLeakFixer.ClassWatchers.values();
+                            for(Watchable watchable:watchables){
+                                try {
+                                    if(watchable != null){
+                                        watchable.watch();
+                                    }
+                                }catch (Exception e){
+                                    e.printStackTrace();
+                                }
                             }
                             try {
                                 lock.wait(InnerClassHelperLoopCheckingThread_FindEmptyDuration*2);
@@ -262,7 +276,10 @@ public class InnerClassHelper {
      * @return 匿名内部类对象的代理类对象
      */
     public  static <T> T createProxyInnerClassInstance(T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
-        initLoopThread();
+        if(!isRunning){
+            Log.e(TAG,"The Watch Thread Is Not Running! Please Make Sure You Called JavaMemoryLeakFixer.startWatchJavaMemory()!!!");
+            return null;
+        }
         Class targetClass = innerClassInstance.getClass();
         String key = targetClass.getName();
         List<Field> syntheticFieldsFields = InnerClassHolderCache.get(key);
@@ -387,7 +404,7 @@ public class InnerClassHelper {
     }
 
     public static boolean isActivityDestroyed(Activity activity){
-        return activity == null || activity.isFinishing() || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1?activity.isDestroyed():false);
+        return activity == null || activity.isFinishing() || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1?activity.isDestroyed():false);
     }
 
     public static Activity getActivityFromContext(Context mContext){
@@ -421,7 +438,7 @@ public class InnerClassHelper {
                         Class type = field.getType();
                         if(AppEnv.IsInAndroidPlatform){
                             if(View.class.isAssignableFrom(type) || Context.class.isAssignableFrom(type)
-                                    || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type)) || (AppEnv.HasAndroidSupportLibraryV4 && android.support.v4.app.Fragment.class.isAssignableFrom(type))
+                                    || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type)) || (AppEnv.HasAndroidSupportLibraryV4 && android.support.v4.app.Fragment.class.isAssignableFrom(type))
                                     || Dialog.class.isAssignableFrom(type) || PopupWindow.class.isAssignableFrom(type)){
                                 return true;
                             }
@@ -468,7 +485,7 @@ public class InnerClassHelper {
                             if(activity != null && isActivityDestroyed(activity)){
                                 return true;
                             }
-                        }else if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type)){
+                        }else if(AppEnv.AndroidSDK_INT>= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type)){
                             Fragment fragment = (Fragment) f.get(innerClassInstance);
                             if(fragment == null || fragment.isRemoving() || fragment.isDetached()){
                                 return true;
@@ -481,7 +498,7 @@ public class InnerClassHelper {
                                 if (isActivityDestroyed(activity)) {
                                     return true;
                                 }
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                                if (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.M) {
                                     context = fragment.getContext();
                                     if(context == null){
                                         return true;
@@ -638,6 +655,7 @@ public class InnerClassHelper {
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
+        boolean willRunOnceAtThread;
         public SimpleInnerClassProxyClassForRunnable(Runnable innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
@@ -668,6 +686,10 @@ public class InnerClassHelper {
             this.implicitReferenceChecker = implicitReferenceChecker;
         }
 
+        public void willRunOnceAtThread(){
+            willRunOnceAtThread = true;
+        }
+
         @Override
         public ImplicitReferenceChecker getImplicitReferenceChecker() {
             return implicitReferenceChecker;
@@ -689,6 +711,7 @@ public class InnerClassHelper {
 
         @Override
         public void run() {
+            willRunOnceAtThread = false;
             if(innerClassInstance != null){
                 innerClassInstance.run();
             }else {

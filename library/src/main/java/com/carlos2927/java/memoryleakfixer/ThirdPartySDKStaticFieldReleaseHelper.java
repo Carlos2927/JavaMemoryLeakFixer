@@ -137,8 +137,6 @@ public class ThirdPartySDKStaticFieldReleaseHelper {
         return null;
     }
 
-    static {
-        AppEnv.setInnerClassHelperLoopCheckingThreadFindEmptyListSleepDuration(AppEnv.InnerClassHelperLoopCheckingThread_FindEmptyDuration);
-    }
+
 
 }

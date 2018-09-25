@@ -6,6 +6,7 @@ public class AppEnv {
     //https://blog.csdn.net/zhuhai__yizhi/article/details/76208800
     //在JavaMemoryLeakFix源码中测试androidDemo请在使用之前设置 System.setProperty("IsUseInJavaMemoryLeakFixSourceTest","true");
     //final static boolean IsUseInJavaMemoryLeakFixSourceTest = "true".equals(System.getProperty("IsUseInJavaMemoryLeakFixSourceTest","false"));
+    static int AndroidSDK_INT;
     /**
      * 检测是否在android环境
      */
@@ -18,8 +19,9 @@ public class AppEnv {
                 Class.forName("android.os.Process");
                 Class cls = Class.forName("android.os.Build$VERSION");
                 // Minimum compatibility  Android 2.3
-//                isInAndroid =  Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD; // in java class file,Build.VERSION.SDK_INT will be replace 0 from AndroidHook Library
-                isInAndroid =  cls.getDeclaredField("SDK_INT").getInt(null) >= Build.VERSION_CODES.GINGERBREAD;
+//                isInAndroid =  Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD; // in java class file,Build.VERSION.SDK_INT will be replace 0 from MockAndroidForJava Library
+                AndroidSDK_INT = cls.getDeclaredField("SDK_INT").getInt(null);
+                isInAndroid =  AndroidSDK_INT >= Build.VERSION_CODES.GINGERBREAD;
             }catch (Exception e){
                 e.printStackTrace();
             }
@@ -55,8 +57,8 @@ public class AppEnv {
         }
     }.call();
 
-    public static final int LibVersionCode = 1;
-    public static final String LibVersion = "v1.0.0";
+    public static final int LibVersionCode = 2;
+    public static final String LibVersion = "v1.0.1";
 
     /**
      * InnerClassHelper.InnerClassTargetList列表无数据时循环检测线程休眠时间
