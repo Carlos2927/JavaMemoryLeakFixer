@@ -12,9 +12,7 @@ public class JavaMemoryLeakFixer {
         if(AppEnv.IsInAndroidPlatform){
             // If In Android Platform Class Watcher For AndroidPlatformMemoryWatcher Library
             try {
-                Class cls = Class.forName("com.carlos2927.java_memory_leak_fixer_android_extension.AndroidPlatformMemoryWatcher");
-                Field field = cls.getField("AndroidPlatformCache");
-                field.setAccessible(true);
+                Field field = JavaReflectUtils.getFieldWithoutCache("com.carlos2927.java_memory_leak_fixer_android_extension.AndroidPlatformMemoryWatcher","AndroidPlatformCache");
                 Map<Class,Watchable> map = (Map<Class, Watchable>) field.get(null);
                 ClassWatchers.putAll(map);
             }catch (Exception e){

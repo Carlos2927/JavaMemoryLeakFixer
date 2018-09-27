@@ -41,8 +41,77 @@ public class JavaReflectUtils {
      */
     public static boolean checkModifierIfSynthetic(int mod) { return (mod & SYNTHETIC_AND_FINAL) == SYNTHETIC_AND_FINAL; }
 
+    public static Field getFieldWithoutCache(String className,String fieldName){
+        try {
+            return getFieldWithoutCache(Class.forName(className),fieldName);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Field getFieldWithoutCache(Class cls,String fieldName){
+        try {
+            Field field = cls.getDeclaredField(fieldName);
+            field.setAccessible(true);
+            return field;
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Method getMethodWithoutCache(String className,String methodName,Class ... argTypes){
+        try {
+            return getMethodWithoutCache(Class.forName(className),methodName,argTypes);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Method getMethodWithoutCache(Class cls,String methodName,Class ... argTypes){
+        try {
+            Method method = cls.getDeclaredMethod(methodName,argTypes);
+            method.setAccessible(true);
+            return method;
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Constructor getConstructorWithoutCache(String className,Class ... argTypes){
+        try {
+            return getConstructorWithoutCache(Class.forName(className),argTypes);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Constructor getConstructorWithoutCache(Class cls,Class ... argTypes){
+        try {
+            Constructor constructor = cls.getDeclaredConstructor(argTypes);
+            constructor.setAccessible(true);
+            return constructor;
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+        return null;
+    }
 
     public static Field getField(String className,String fieldName){
+        try {
+            return getField(Class.forName(className),fieldName);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public static Field getField(Class cls,String fieldName){
+        String className = cls.getName();
         Map<String,Object> cache = JavaClassReflectCache.get(className);
         if(cache == null){
             cache = new HashMap<>();
@@ -51,7 +120,6 @@ public class JavaReflectUtils {
         Field field = (Field) cache.get(fieldName);
         if(field == null){
             try {
-                Class cls = Class.forName(className);
                 field = cls.getDeclaredField(fieldName);
                 field.setAccessible(true);
                 cache.put(fieldName,field);
@@ -66,17 +134,8 @@ public class JavaReflectUtils {
         return field;
     }
 
-    public static Field getField(Class cls,String fieldName){
-        return getField(cls.getName(),fieldName);
-    }
-
     public static Method getMethod(Class cls,String methodName,Class ... argTypes){
-        return getMethod(cls.getName(),methodName,argTypes);
-    }
-
-
-
-    public static Method getMethod(String className,String methodName,Class ... argTypes){
+        String className = cls.getName();
         Map<String,Object> cache = JavaClassReflectCache.get(className);
         if(cache == null){
             cache = new HashMap<>();
@@ -95,7 +154,6 @@ public class JavaReflectUtils {
         Method method = (Method) cache.get(key);
         if(method == null){
             try {
-                Class cls = Class.forName(className);
                 method = cls.getDeclaredMethod(methodName,argTypes);
                 method.setAccessible(true);
                 cache.put(key,method);
@@ -110,10 +168,19 @@ public class JavaReflectUtils {
         return method;
     }
 
-    public static Constructor getConstructor(Class cls,Class ... argTypes){
-        return getConstructor(cls,argTypes);
+
+
+    public static Method getMethod(String className,String methodName,Class ... argTypes){
+        try {
+            return getMethod(Class.forName(className),methodName,argTypes);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
-    public static Constructor getConstructor(String className,Class ... argTypes){
+
+    public static Constructor getConstructor(Class cls,Class ... argTypes){
+        String className = cls.getName();
         Map<String,Object> cache = JavaClassReflectCache.get(className);
         if(cache == null){
             cache = new HashMap<>();
@@ -133,7 +200,6 @@ public class JavaReflectUtils {
         Constructor constructor = (Constructor) cache.get(key);
         if(constructor == null){
             try {
-                Class cls = Class.forName(className);
                 constructor = cls.getConstructor(argTypes);
                 constructor.setAccessible(true);
                 cache.put(key,constructor);
@@ -146,6 +212,14 @@ public class JavaReflectUtils {
             return null;
         }
         return constructor;
+    }
+    public static Constructor getConstructor(String className,Class ... argTypes){
+        try {
+            return getConstructor(Class.forName(className),argTypes);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
 }
