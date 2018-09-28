@@ -285,7 +285,7 @@ public class InnerClassHelper {
     public  static <T> T createProxyInnerClassInstance(T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
         if(!isRunning){
             Log.e(TAG,"The Watch Thread Is Not Running! Please Make Sure You Called JavaMemoryLeakFixer.startWatchJavaMemory()!!!");
-            return null;
+//            return null;
         }
         Class targetClass = innerClassInstance.getClass();
         String key = targetClass.getName();
@@ -411,7 +411,7 @@ public class InnerClassHelper {
     }
 
     public static boolean isActivityDestroyed(Activity activity){
-        return activity == null || activity.isFinishing() || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1?activity.isDestroyed():false);
+        return activity == null || activity.isFinishing() || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1 && activity.isDestroyed());
     }
 
     public static Activity getActivityFromContext(Context mContext){
@@ -675,7 +675,6 @@ public class InnerClassHelper {
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
-        boolean willRunOnceAtThread;
         public SimpleInnerClassProxyClassForRunnable(Runnable innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
@@ -685,7 +684,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void clearInnerClassInstance() {
+        public synchronized void clearInnerClassInstance() {
             innerClassInstance = null;
             fields = null;
             implicitReferenceChecker = null;
@@ -706,9 +705,6 @@ public class InnerClassHelper {
             this.implicitReferenceChecker = implicitReferenceChecker;
         }
 
-        public void willRunOnceAtThread(){
-            willRunOnceAtThread = true;
-        }
 
         @Override
         public ImplicitReferenceChecker getImplicitReferenceChecker() {
@@ -730,8 +726,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void run() {
-            willRunOnceAtThread = false;
+        public synchronized void run() {
             if(innerClassInstance != null){
                 innerClassInstance.run();
             }else {
@@ -760,7 +755,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void clearInnerClassInstance() {
+        public synchronized void clearInnerClassInstance() {
             innerClassInstance = null;
             delayTask = null;
             implicitReferenceChecker = null;
@@ -800,15 +795,15 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void handleMessage(Message msg) {
+        public synchronized void handleMessage(Message msg) {
             if(innerClassInstance != null){
                 innerClassInstance.handleMessage(msg);
             }
         }
 
         @Override
-        public boolean sendMessageAtTime(Message msg, long uptimeMillis) {
-            return innerClassInstance != null ? innerClassInstance.sendMessageAtTime(msg,uptimeMillis) : true;
+        public synchronized boolean sendMessageAtTime(Message msg, long uptimeMillis) {
+            return innerClassInstance == null || innerClassInstance.sendMessageAtTime(msg,uptimeMillis);
         }
     }
 
@@ -824,7 +819,7 @@ public class InnerClassHelper {
             this.innerClassInstance = innerClassInstance;
         }
         @Override
-        public void onReceive(Context context, Intent intent) {
+        public synchronized void onReceive(Context context, Intent intent) {
             if(innerClassInstance != null){
                 innerClassInstance.onReceive(context,intent);
             }
@@ -836,7 +831,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void clearInnerClassInstance() {
+        public synchronized void clearInnerClassInstance() {
             delayTask = null;
             innerClassInstance = null;
             implicitReferenceChecker = null;
@@ -869,7 +864,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void notifyNeedCheck() {
+        public final synchronized void notifyNeedCheck() {
             if(delayTask != null){
                 delayTask.run();
                 delayTask = null;
