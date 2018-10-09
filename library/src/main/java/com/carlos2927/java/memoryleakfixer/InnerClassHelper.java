@@ -506,6 +506,14 @@ public class InnerClassHelper {
                             if(fragment == null || fragment.isRemoving() || fragment.isDetached()){
                                 return true;
                             }
+                            try {
+                                //if the fragment is not call onActivityCreate(),pass check it
+                                if(JavaReflectUtils.getField(Fragment.class,"mState").getInt(fragment)<2){
+                                    continue;
+                                }
+                            }catch (Exception e){
+                                e.printStackTrace();
+                            }
                             context = fragment.getActivity();
                             if(context == null){
                                 return true;
@@ -526,6 +534,14 @@ public class InnerClassHelper {
                             try {
                                 if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_v4_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_v4_fragment,"isDetached").invoke(fragment)){
                                     return true;
+                                }
+                                try {
+                                    //if the fragment is not call onActivityCreate(),pass check it
+                                    if(JavaReflectUtils.getField(cls_v4_fragment,"mState").getInt(fragment)<2){
+                                        continue;
+                                    }
+                                }catch (Exception e){
+                                    e.printStackTrace();
                                 }
                                 context = (Context) JavaReflectUtils.getMethod(cls_v4_fragment,"getContext").invoke(fragment);
                                 if(context == null){
