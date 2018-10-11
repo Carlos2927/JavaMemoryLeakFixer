@@ -59,7 +59,7 @@ public class InnerClassHelper {
 //        field.setAccessible(true);
 //        if (checkModifier(field.getModifiers())) {
 //            try {
-//                return field.get(target);
+//                return field._getLifeCycleObject(target);
 //            } catch (IllegalAccessException e) {
 //                throw new RuntimeException(e);
 //            }
@@ -128,6 +128,7 @@ public class InnerClassHelper {
                                     Log.i(TAG,String.format("%s[@%x] InnerClassTargetList is empty, LoopCount = %d , waiting...",getName(),hashCode,count));
                                 }
                                 try {
+                                    //sleep ...
                                     lock.wait(InnerClassHelperLoopCheckingThread_FindEmptyDuration);
                                 } catch (InterruptedException e) {
                                     e.printStackTrace();
@@ -148,6 +149,14 @@ public class InnerClassHelper {
                                         if(innerClassInstance != null){
                                             ImplicitReferenceChecker implicitReferenceChecker = innerClassTarget.getImplicitReferenceChecker();
                                             if(implicitReferenceChecker != null){
+                                                //first,check the watched lifecycle object
+                                                if(LifeCycleObjectDirectGetter.class.isInstance(innerClassTarget) && implicitReferenceChecker.checkLifeCycleObjectDestroyed((LifeCycleObjectDirectGetter) innerClassTarget)){
+                                                    toDelete.add(innerClassTargetWeakReference);
+                                                    innerClassTarget.clearInnerClassInstance();
+                                                    innerClassTargetWeakReference.clear();
+                                                    continue;
+                                                }
+                                                //then,check all the implicit references
                                                 List<Field> fields = innerClassTarget.getImplicitReferenceFields();
                                                 if(fields != null && implicitReferenceChecker.checkImplicitReferenceDestroyed(fields,innerClassInstance)){
                                                     toDelete.add(innerClassTargetWeakReference);
@@ -188,6 +197,7 @@ public class InnerClassHelper {
                                 break;
                             }
                             try {
+                                //sleep ...
                                 lock.wait(InnerClassHelperLoopCheckingThread_FindEmptyDuration*2);
                             } catch (InterruptedException e) {
                                 e.printStackTrace();
@@ -302,6 +312,7 @@ public class InnerClassHelper {
             if(!InnerClassTarget.class.isInstance(proxyInnerClassInstance)){
                 return innerClassInstance;
             }
+
             final InnerClassTarget<T> innerClassTarget = (InnerClassTarget<T>) proxyInnerClassInstance;
             if(implicitReferenceChecker == null){
                 implicitReferenceChecker = DefaultImplicitReferenceChecker;
@@ -473,6 +484,172 @@ public class InnerClassHelper {
         }
 
         @Override
+        public boolean checkLifeCycleObjectDestroyed(LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter) {
+            if(AppEnv.HasAndroidSupportLibraryV4 && cls_v4_fragment == null){
+                try {
+                    cls_v4_fragment = Class.forName("android.support.v4.app.Fragment");
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+            Object lifeCycleObject = lifeCycleObjectDirectGetter._getLifeCycleObject();
+            if(lifeCycleObject == null){
+                //developer may be not set
+                return false;
+            }
+            if(AppEnv.IsInAndroidPlatform){
+                try {
+                    if(Context.class.isInstance(lifeCycleObject) && checkContext((Context) lifeCycleObject)){
+                        return true;
+                    }
+                    if(View.class.isInstance(lifeCycleObject) && checkView((View) lifeCycleObject)){
+                        return true;
+                    }
+                    if(Fragment.class.isInstance(lifeCycleObject)){
+                        Fragment fragment = (Fragment) lifeCycleObject;
+                        if(checkFragmentState(fragment) || (!checkFragmentNoInLifeCycle(fragment) && checkFragmentState(fragment))){
+                            return true;
+                        }
+                    }
+
+                    if(cls_v4_fragment.isInstance(lifeCycleObject) && checkFragmentV4State(lifeCycleObject) || (!checkFragmentV4NoInLifeCycle(lifeCycleObject) && checkFragmentV4State(lifeCycleObject))){
+                        return true;
+                    }
+                    if(Dialog.class.isInstance(lifeCycleObject) && checkDialog((Dialog)lifeCycleObject)){
+                        return true;
+                    }
+                    if(PopupWindow.class.isInstance(lifeCycleObject) && checkPopupWindow((PopupWindow)lifeCycleObject)){
+                        return true;
+                    }
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
+            return false;
+        }
+
+        private boolean checkView(View view){
+            Context context = view.getContext();
+            if(context == null){
+                return true;
+            }
+            Activity activity = getActivityFromContext(context);
+            if(activity != null && isActivityDestroyed(activity)){
+                return true;
+            }
+            return false;
+        }
+
+        private boolean checkContext(Context context){
+            Activity activity = getActivityFromContext(context);
+            if(activity != null && isActivityDestroyed(activity)){
+                return true;
+            }
+            return false;
+        }
+
+        private boolean checkFragmentNoInLifeCycle(Fragment fragment){
+            try {
+                return JavaReflectUtils.getField(Fragment.class,"mState").getInt(fragment)<2;
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+            return false;
+        }
+        private boolean checkFragmentV4NoInLifeCycle(Object fragment){
+            try {
+                return JavaReflectUtils.getField(cls_v4_fragment,"mState").getInt(fragment)<2;
+            }catch (Exception e){
+                e.printStackTrace();
+            }
+            return false;
+        }
+
+        private  boolean checkFragmentState(Fragment fragment){
+            if(fragment == null || fragment.isRemoving() || fragment.isDetached()){
+                return true;
+            }
+            return false;
+        }
+
+        private  boolean checkFragmentV4State(Object fragment) throws Exception{
+            if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_v4_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_v4_fragment,"isDetached").invoke(fragment)){
+                return true;
+            }
+            return false;
+        }
+
+        private boolean checkFragmentContext(Fragment fragment){
+            Context context = fragment.getActivity();
+            if(context == null){
+                return true;
+            }else{
+                Activity activity = (Activity) context;
+                if (isActivityDestroyed(activity)) {
+                    return true;
+                }
+                if (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.M) {
+                    context = fragment.getContext();
+                    if(context == null){
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        private boolean checkFragmentV4Context(Object fragment) throws Exception{
+            Context context = (Context) JavaReflectUtils.getMethod(cls_v4_fragment,"getContext").invoke(fragment);
+            if(context == null){
+                return true;
+            }
+            Activity activity = (Activity) JavaReflectUtils.getMethod(cls_v4_fragment,"getActivity").invoke(fragment);
+            if (isActivityDestroyed(activity)) {
+                return true;
+            }
+            return false;
+        }
+
+        private boolean checkDialog(Dialog dialog){
+            if(dialog==null || !dialog.isShowing()){
+                return true;
+            }
+            Context context = dialog.getContext();
+            if(context == null){
+                return true;
+            }
+            Activity activity = getActivityFromContext(context);
+            if(activity != null && isActivityDestroyed(activity)){
+                return true;
+            }
+            if(activity == null){
+                activity = dialog.getOwnerActivity();
+            }
+            if(activity != null && isActivityDestroyed(activity)){
+                return true;
+            }
+            return false;
+        }
+
+        private boolean checkPopupWindow(PopupWindow popupWindow){
+            if(popupWindow == null || !popupWindow.isShowing()){
+                return true;
+            }
+            View v = popupWindow.getContentView();
+            if(v != null){
+                Context context = v.getContext();
+                if(context == null){
+                    return true;
+                }
+                Activity activity = getActivityFromContext(context);
+                if(activity != null && isActivityDestroyed(activity)){
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
         public boolean checkImplicitReferenceDestroyed(List<Field> fields,Object innerClassInstance) {
             for(Field f:fields){
                 try {
@@ -484,71 +661,48 @@ public class InnerClassHelper {
                             if(view == null){
                                 return true;
                             }
-                            context = view.getContext();
-                            if(context == null){
+                           if(checkView(view)){
                                 return true;
-                            }
-                            Activity activity = getActivityFromContext(context);
-                            if(activity != null && isActivityDestroyed(activity)){
-                                return true;
-                            }
+                           }
                         }else if(Context.class.isAssignableFrom(type)){
                             context = (Context) f.get(innerClassInstance);
                             if(context == null){
                                 return true;
                             }
-                            Activity activity = getActivityFromContext(context);
-                            if(activity != null && isActivityDestroyed(activity)){
+                            if(checkContext(context)){
                                 return true;
                             }
                         }else if(AppEnv.AndroidSDK_INT>= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type)){
                             Fragment fragment = (Fragment) f.get(innerClassInstance);
-                            if(fragment == null || fragment.isRemoving() || fragment.isDetached()){
+                            if(checkFragmentState(fragment)){
                                 return true;
                             }
                             try {
                                 //if the fragment is not call onActivityCreate(),pass check it
-                                if(JavaReflectUtils.getField(Fragment.class,"mState").getInt(fragment)<2){
+                                if(checkFragmentNoInLifeCycle(fragment)){
                                     continue;
                                 }
                             }catch (Exception e){
                                 e.printStackTrace();
                             }
-                            context = fragment.getActivity();
-                            if(context == null){
+                            if(checkFragmentContext(fragment)){
                                 return true;
-                            }else{
-                                Activity activity = (Activity) context;
-                                if (isActivityDestroyed(activity)) {
-                                    return true;
-                                }
-                                if (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.M) {
-                                    context = fragment.getContext();
-                                    if(context == null){
-                                        return true;
-                                    }
-                                }
                             }
                         }else if(cls_v4_fragment !=null  && cls_v4_fragment.isAssignableFrom(type)){
                             Object fragment =  f.get(innerClassInstance);
                             try {
-                                if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_v4_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_v4_fragment,"isDetached").invoke(fragment)){
+                                if(checkFragmentV4State(fragment)){
                                     return true;
                                 }
                                 try {
                                     //if the fragment is not call onActivityCreate(),pass check it
-                                    if(JavaReflectUtils.getField(cls_v4_fragment,"mState").getInt(fragment)<2){
+                                    if(checkFragmentV4NoInLifeCycle(fragment)){
                                         continue;
                                     }
                                 }catch (Exception e){
                                     e.printStackTrace();
                                 }
-                                context = (Context) JavaReflectUtils.getMethod(cls_v4_fragment,"getContext").invoke(fragment);
-                                if(context == null){
-                                    return true;
-                                }
-                                Activity activity = (Activity) JavaReflectUtils.getMethod(cls_v4_fragment,"getActivity").invoke(fragment);
-                                if (isActivityDestroyed(activity)) {
+                                if(checkFragmentV4Context(fragment)){
                                     return true;
                                 }
                             }catch (Exception e){
@@ -557,40 +711,16 @@ public class InnerClassHelper {
 
                         }else if(Dialog.class.isAssignableFrom(type)){
                             Dialog dialog = (Dialog) f.get(innerClassInstance);
-                            if(dialog==null || !dialog.isShowing()){
-                                return true;
-                            }
-                            context = dialog.getContext();
-                            if(context == null){
-                                return true;
-                            }
-                            Activity activity = getActivityFromContext(context);
-                            if(activity != null && isActivityDestroyed(activity)){
-                                return true;
-                            }
-                            if(activity == null){
-                                activity = dialog.getOwnerActivity();
-                            }
-                            if(activity != null && isActivityDestroyed(activity)){
+                            if(checkDialog(dialog)){
                                 return true;
                             }
 
                         }else if(PopupWindow.class.isAssignableFrom(type)){
                             PopupWindow popupWindow = (PopupWindow) f.get(innerClassInstance);
-                            if(popupWindow == null || !popupWindow.isShowing()){
+                            if(checkPopupWindow(popupWindow)){
                                 return true;
                             }
-                            View v = popupWindow.getContentView();
-                            if(v != null){
-                                context = v.getContext();
-                                if(context == null){
-                                    return true;
-                                }
-                                Activity activity = getActivityFromContext(context);
-                                if(activity != null && isActivityDestroyed(activity)){
-                                    return true;
-                                }
-                            }
+
                         }
                     }else if(DefaultNoAndroidPlatformImplicitReferenceChecker != null){
                         if(DefaultNoAndroidPlatformImplicitReferenceChecker.checkImplicitReferenceDestroyed(fields,innerClassInstance)){
@@ -610,7 +740,7 @@ public class InnerClassHelper {
     /**
      * 匿名内部类隐式引用属性检测器
      */
-    public static abstract class ImplicitReferenceChecker{
+    public static abstract class ImplicitReferenceChecker implements LifeCycleObjectChecker{
         /**
          * 判断匿名内部类对象的隐式属性是否需要防止内存泄漏
          * @param field   匿名内部类对象的隐式属性
@@ -626,6 +756,42 @@ public class InnerClassHelper {
          * @return 判断是否已经被销毁
          */
         public abstract boolean checkImplicitReferenceDestroyed(List<Field> fields,Object innerClassInstance);
+
+        @Override
+        public boolean checkLifeCycleObjectDestroyed(LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter) {
+            return false;
+        }
+    }
+
+    /**
+     * 有生命周期的对象检测器
+     */
+    public interface LifeCycleObjectChecker{
+        /**
+         * 检测监控的生命周期对象是否已经销毁了
+         * @param lifeCycleObjectDirectGetter 生命周期对象直接获取器
+         * @return
+         */
+        boolean checkLifeCycleObjectDestroyed(LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter);
+    }
+
+    /**
+     * 需要检测的防止引发内存泄漏的具有生命周期的对象直接获取器,而不是通过匿名内部类隐式引用属性检测器(ImplicitReferenceChecker)间接去获取该对象,
+     * 这种方式有助于提高性能,这在多重匿名内部类中很有用。
+     * 
+     */
+    public interface LifeCycleObjectDirectGetter {
+        /***
+         * 返回需要监控的生命周期对象
+         * @return 生命周期的对象
+         */
+        Object _getLifeCycleObject();
+
+        /**
+         * 设置要检测的生命周期对象
+         * @param lifeCycleObject 生命周期对象
+         */
+        void _setLifeCycleObject(Object lifeCycleObject);
     }
 
     /**
@@ -686,11 +852,12 @@ public class InnerClassHelper {
     /**
      * Runnable的简单的匿名内部类代理类
      */
-    public static class SimpleInnerClassProxyClassForRunnable implements Runnable,InnerClassTarget<Runnable>{
+    public static class SimpleInnerClassProxyClassForRunnable implements Runnable,InnerClassTarget<Runnable>,LifeCycleObjectDirectGetter {
         Runnable innerClassInstance;
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
+        Object lifeCycleObject;
         public SimpleInnerClassProxyClassForRunnable(Runnable innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
@@ -704,6 +871,7 @@ public class InnerClassHelper {
             innerClassInstance = null;
             fields = null;
             implicitReferenceChecker = null;
+            lifeCycleObject = null;
         }
 
         @Override
@@ -749,6 +917,16 @@ public class InnerClassHelper {
                 Log.w("InnerClassTarget","innerClassInstance已被清空");
             }
         }
+
+        @Override
+        public synchronized Object _getLifeCycleObject() {
+            return lifeCycleObject;
+        }
+
+        @Override
+        public synchronized void _setLifeCycleObject(Object lifeCycleObject) {
+            this.lifeCycleObject = lifeCycleObject;
+        }
     }
 
 
@@ -756,14 +934,25 @@ public class InnerClassHelper {
     /**
      * Handler的简单的匿名内部类代理类
      */
-    public static class SimpleInnerClassProxyClassForHandler extends Handler implements InnerClassTarget<Handler>{
+    public static class SimpleInnerClassProxyClassForHandler extends Handler implements InnerClassTarget<Handler>,LifeCycleObjectDirectGetter {
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
         Handler innerClassInstance;
+        Object lifeCycleObject;
         public SimpleInnerClassProxyClassForHandler(Handler innerClassInstance){
             super(innerClassInstance.getLooper());
             this.innerClassInstance = innerClassInstance;
+        }
+
+        @Override
+        public synchronized Object _getLifeCycleObject() {
+            return lifeCycleObject;
+        }
+
+        @Override
+        public synchronized void _setLifeCycleObject(Object lifeCycleObject) {
+            this.lifeCycleObject = lifeCycleObject;
         }
         @Override
         public Handler getInnerClassInstance() {
@@ -775,6 +964,7 @@ public class InnerClassHelper {
             innerClassInstance = null;
             delayTask = null;
             implicitReferenceChecker = null;
+            lifeCycleObject = null;
         }
 
         @Override
@@ -826,11 +1016,22 @@ public class InnerClassHelper {
     /**
      * BroadcastReceiver的简单的匿名内部类代理类
      */
-    public static class SimpleInnerClassProxyClassForBroadcastReceiver extends BroadcastReceiver implements InnerClassTarget<BroadcastReceiver>{
+    public static class SimpleInnerClassProxyClassForBroadcastReceiver extends BroadcastReceiver implements InnerClassTarget<BroadcastReceiver>,LifeCycleObjectDirectGetter {
         BroadcastReceiver innerClassInstance;
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
+        Object lifeCycleObject;
+
+        @Override
+        public synchronized Object _getLifeCycleObject() {
+            return lifeCycleObject;
+        }
+
+        @Override
+        public synchronized void _setLifeCycleObject(Object lifeCycleObject) {
+            this.lifeCycleObject = lifeCycleObject;
+        }
         public SimpleInnerClassProxyClassForBroadcastReceiver(BroadcastReceiver innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
