@@ -235,7 +235,31 @@ public class InnerClassHelper {
     }
 
     public  static <T> T createProxyInnerClassInstance(T innerClassInstance,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
-        return createProxyInnerClassInstance(innerClassInstance,null,isDelayCheck,implicitReferenceChecker);
+        return createProxyInnerClassInstance(null,innerClassInstance,null,isDelayCheck,implicitReferenceChecker);
+    }
+
+    /**
+     * 创建匿名内部类对象的代理类对象,这个方法适合innerClassInstance是在其他匿名内部类中直接创建时调用,直接传入需要监控的lifeCycleObject
+     * @param lifeCycleObject 要监控的有生命周期的对象
+     * @param innerClassInstance 创建匿名内部类对象
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
+     * @return 匿名内部类对象的代理类对象
+     */
+    public static <T> T createProxyInnerClassInstance(Object lifeCycleObject,T innerClassInstance){
+        return createProxyInnerClassInstance(lifeCycleObject,false,innerClassInstance);
+    }
+
+    /**
+     * 创建匿名内部类对象的代理类对象,这个方法适合innerClassInstance是在其他匿名内部类中直接创建时调用,直接传入需要监控的lifeCycleObject,当innerClassInstance不是在lifeCycleObject的生命周期方法中创建而是直接在
+     * 变量声明中创建时，isDelayCheck必须设置为true,并在合适的声明周期方法中调用名内部类对象的代理类对象的notifyNeedCheck()方法
+     * @param lifeCycleObject 要监控的有生命周期的对象
+     * @param innerClassInstance 创建匿名内部类对象
+     * @param isDelayCheck 设置是否需要延迟检测,如果设置成true,则必须在匿名内部类执行可能导致内存溢出的代码执行之前调用一次 InnerClassTarget.notifyNeedCheck()方法
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
+     * @return 匿名内部类对象的代理类对象
+     */
+    public static <T> T createProxyInnerClassInstance(Object lifeCycleObject,boolean isDelayCheck,T innerClassInstance){
+        return createProxyInnerClassInstance(lifeCycleObject,innerClassInstance,null,isDelayCheck,DefaultImplicitReferenceChecker);
     }
 
     /**
@@ -285,6 +309,7 @@ public class InnerClassHelper {
 
     /**
      * 创建匿名内部类对象的代理类对象
+     * @param lifeCycleObject 要监控的有生命周期的对象
      * @param innerClassInstance 创建匿名内部类对象
      * @param proxyClass   匿名内部类对象的代理类 传空将使用默认注册的
      * @param isDelayCheck 设置是否需要延迟检测,如果设置成true,则必须在匿名内部类执行可能导致内存溢出的代码执行之前调用一次 InnerClassTarget.notifyNeedCheck()方法
@@ -292,7 +317,7 @@ public class InnerClassHelper {
      * @param <T> 匿名内部类与其代理类的共同父类或者父接口
      * @return 匿名内部类对象的代理类对象
      */
-    public  static <T> T createProxyInnerClassInstance(T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
+    public  static <T> T createProxyInnerClassInstance(Object lifeCycleObject,T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
         if(!isRunning){
             Log.e(TAG,"The Watch Thread Is Not Running! Please Make Sure You Called JavaMemoryLeakFixer.startWatchJavaMemory()!!!");
 //            return null;
@@ -317,14 +342,19 @@ public class InnerClassHelper {
             if(implicitReferenceChecker == null){
                 implicitReferenceChecker = DefaultImplicitReferenceChecker;
             }
-            List<Field> fields = new ArrayList<>();
-            for(Field f:syntheticFieldsFields){
-                if(implicitReferenceChecker.isNeedFilter(f,innerClassInstance)){
-                    fields.add(f);
-                }
-            }
-            innerClassTarget.setImplicitReferenceFields(fields);
             innerClassTarget.setImplicitReferenceChecker(implicitReferenceChecker);
+            if(LifeCycleObjectDirectGetter.class.isInstance(proxyInnerClassInstance) && lifeCycleObject!=null){
+                LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter = (LifeCycleObjectDirectGetter) proxyInnerClassInstance;
+                lifeCycleObjectDirectGetter._setLifeCycleObject(lifeCycleObject);
+            }else {
+                List<Field> fields = new ArrayList<>();
+                for(Field f:syntheticFieldsFields){
+                    if(implicitReferenceChecker.isNeedFilter(f,innerClassInstance)){
+                        fields.add(f);
+                    }
+                }
+                innerClassTarget.setImplicitReferenceFields(fields);
+            }
             if(isDelayCheck){
                 innerClassTarget.setDelayCheckTask(new Runnable() {
                     @Override
@@ -376,7 +406,7 @@ public class InnerClassHelper {
                 if(proxyClassInterfaces != null && proxyClassInterfaces.length>1){
                     for(Class cls:interfaces){
                         for(Class c:proxyClassInterfaces){
-                            if(cls == c &&  cls != InnerClassTarget.class){
+                            if(cls == c &&  cls != InnerClassTarget.class && cls != LifeCycleObjectDirectGetter.class){
                                 return cls;
                             }
                         }
@@ -388,14 +418,20 @@ public class InnerClassHelper {
             return innerClassSuperClass;
         }else {
             if(proxyClassInterfaces != null && proxyClassInterfaces.length>0){
-                if(proxyClassInterfaces.length == 1){
-                    return proxyClassSuperClass;
-                }
-                for(Class cls:proxyClassInterfaces){
-                    if(cls != InnerClassTarget.class){
-                        return cls;
+                Class superClass = proxyClassSuperClass.getSuperclass();
+                //if the common super class is interface
+                if(proxyClassSuperClass == Object.class && superClass==null){
+                    for(Class cls:proxyClassInterfaces){
+                        // the proxy class of a interface,must first implement the interface,then implement others,
+                        // the proxy class must implements InnerClassTarget<OriginInterface>,the implements of LifeCycleObjectDirectGetter is optional
+                        if(cls != InnerClassTarget.class && cls != LifeCycleObjectDirectGetter.class){
+                            Log.w(TAG,String.format("Warning: The innerClassProxyClass(%s) of a interface must first implements this interface,then implements others!!!",proxyClass.getName()));
+                            return cls;
+                        }
                     }
                 }
+                // if the common super class is class
+                return proxyClassSuperClass;
             }
 
         }
@@ -914,7 +950,7 @@ public class InnerClassHelper {
             if(innerClassInstance != null){
                 innerClassInstance.run();
             }else {
-                Log.w("InnerClassTarget","innerClassInstance已被清空");
+                Log.w(TAG,"innerClassInstance已被清空");
             }
         }
 
@@ -955,7 +991,7 @@ public class InnerClassHelper {
             this.lifeCycleObject = lifeCycleObject;
         }
         @Override
-        public Handler getInnerClassInstance() {
+        public synchronized Handler getInnerClassInstance() {
             return innerClassInstance;
         }
 
@@ -968,27 +1004,27 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void setImplicitReferenceFields(List<Field> fields) {
+        public synchronized void setImplicitReferenceFields(List<Field> fields) {
             this.fields = fields;
         }
 
         @Override
-        public List<Field> getImplicitReferenceFields() {
+        public synchronized List<Field> getImplicitReferenceFields() {
             return fields;
         }
 
         @Override
-        public void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
+        public synchronized void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
             this.implicitReferenceChecker = implicitReferenceChecker;
         }
 
         @Override
-        public ImplicitReferenceChecker getImplicitReferenceChecker() {
+        public synchronized ImplicitReferenceChecker getImplicitReferenceChecker() {
             return implicitReferenceChecker;
         }
 
         @Override
-        public void setDelayCheckTask(Runnable delayTask) {
+        public synchronized void setDelayCheckTask(Runnable delayTask) {
             this.delayTask = delayTask;
         }
 
@@ -1043,7 +1079,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public BroadcastReceiver getInnerClassInstance() {
+        public synchronized BroadcastReceiver getInnerClassInstance() {
             return innerClassInstance;
         }
 
@@ -1056,27 +1092,27 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void setImplicitReferenceFields(List<Field> fields) {
+        public synchronized void setImplicitReferenceFields(List<Field> fields) {
             this.fields = fields;
         }
 
         @Override
-        public List<Field> getImplicitReferenceFields() {
+        public synchronized List<Field> getImplicitReferenceFields() {
             return fields;
         }
 
         @Override
-        public void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
+        public synchronized void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
             this.implicitReferenceChecker = implicitReferenceChecker;
         }
 
         @Override
-        public ImplicitReferenceChecker getImplicitReferenceChecker() {
+        public synchronized ImplicitReferenceChecker getImplicitReferenceChecker() {
             return implicitReferenceChecker;
         }
 
         @Override
-        public void setDelayCheckTask(Runnable delayTask) {
+        public synchronized void setDelayCheckTask(Runnable delayTask) {
             this.delayTask = delayTask;
         }
 
