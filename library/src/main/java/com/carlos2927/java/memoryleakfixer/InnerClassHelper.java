@@ -87,7 +87,7 @@ public class InnerClassHelper {
      * 手动检查释放需要释放匿名内部类对象（可以在Activity.onDestroy()中调用）
      */
     static void tryToWatch(){
-        synchronized (lock){
+        synchronized(lock){
             lock.notifyAll();
         }
     }
@@ -96,7 +96,7 @@ public class InnerClassHelper {
      * 应用退出时调用(释放占用资源)
      */
     static void release(){
-        synchronized (lock){
+        synchronized(lock){
             isRunning = false;
             proxyClassMap.clear();
             InnerClassHolderCache.evictAll();
@@ -122,7 +122,7 @@ public class InnerClassHelper {
                     int count = 0;
                     int InnerClassHelperLoopCheckingThread_FindEmptyDuration = AppEnv.InnerClassHelperLoopCheckingThread_FindEmptyDuration;
                     for(;isRunning;){
-                        synchronized (lock){
+                        synchronized(lock){
                             if(InnerClassTargetList.isEmpty()){
                                 if(count%60==0){
                                     Log.i(TAG,String.format("%s[@%x] InnerClassTargetList is empty, LoopCount = %d , waiting...",getName(),hashCode,count));
@@ -359,14 +359,14 @@ public class InnerClassHelper {
                 innerClassTarget.setDelayCheckTask(new Runnable() {
                     @Override
                     public void run() {
-                        synchronized (lock){
+                        synchronized(lock){
                             InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
                             lock.notifyAll();
                         }
                     }
                 });
             }else {
-                synchronized (lock){
+                synchronized(lock){
                     InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
                     lock.notifyAll();
                 }
@@ -903,7 +903,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized void clearInnerClassInstance() {
+        public void clearInnerClassInstance() {
             innerClassInstance = null;
             fields = null;
             implicitReferenceChecker = null;
@@ -937,7 +937,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized void notifyNeedCheck() {
+        public void notifyNeedCheck() {
             //保证延迟检测任务只执行一次
             if(delayTask != null){
                 delayTask.run();
@@ -946,7 +946,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized void run() {
+        public void run() {
             if(innerClassInstance != null){
                 innerClassInstance.run();
             }else {
@@ -955,12 +955,12 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized Object _getLifeCycleObject() {
+        public Object _getLifeCycleObject() {
             return lifeCycleObject;
         }
 
         @Override
-        public synchronized void _setLifeCycleObject(Object lifeCycleObject) {
+        public void _setLifeCycleObject(Object lifeCycleObject) {
             this.lifeCycleObject = lifeCycleObject;
         }
     }
@@ -982,21 +982,21 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized Object _getLifeCycleObject() {
+        public Object _getLifeCycleObject() {
             return lifeCycleObject;
         }
 
         @Override
-        public synchronized void _setLifeCycleObject(Object lifeCycleObject) {
+        public void _setLifeCycleObject(Object lifeCycleObject) {
             this.lifeCycleObject = lifeCycleObject;
         }
         @Override
-        public synchronized Handler getInnerClassInstance() {
+        public Handler getInnerClassInstance() {
             return innerClassInstance;
         }
 
         @Override
-        public synchronized void clearInnerClassInstance() {
+        public void clearInnerClassInstance() {
             innerClassInstance = null;
             delayTask = null;
             implicitReferenceChecker = null;
@@ -1004,32 +1004,32 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized void setImplicitReferenceFields(List<Field> fields) {
+        public void setImplicitReferenceFields(List<Field> fields) {
             this.fields = fields;
         }
 
         @Override
-        public synchronized List<Field> getImplicitReferenceFields() {
+        public List<Field> getImplicitReferenceFields() {
             return fields;
         }
 
         @Override
-        public synchronized void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
+        public void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
             this.implicitReferenceChecker = implicitReferenceChecker;
         }
 
         @Override
-        public synchronized ImplicitReferenceChecker getImplicitReferenceChecker() {
+        public ImplicitReferenceChecker getImplicitReferenceChecker() {
             return implicitReferenceChecker;
         }
 
         @Override
-        public synchronized void setDelayCheckTask(Runnable delayTask) {
+        public void setDelayCheckTask(Runnable delayTask) {
             this.delayTask = delayTask;
         }
 
         @Override
-        public final synchronized void notifyNeedCheck() {
+        public final void notifyNeedCheck() {
             if(delayTask != null){
                 delayTask.run();
                 delayTask = null;
@@ -1037,14 +1037,14 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized void handleMessage(Message msg) {
+        public void handleMessage(Message msg) {
             if(innerClassInstance != null){
                 innerClassInstance.handleMessage(msg);
             }
         }
 
         @Override
-        public synchronized boolean sendMessageAtTime(Message msg, long uptimeMillis) {
+        public boolean sendMessageAtTime(Message msg, long uptimeMillis) {
             return innerClassInstance == null || innerClassInstance.sendMessageAtTime(msg,uptimeMillis);
         }
     }
@@ -1060,31 +1060,31 @@ public class InnerClassHelper {
         Object lifeCycleObject;
 
         @Override
-        public synchronized Object _getLifeCycleObject() {
+        public Object _getLifeCycleObject() {
             return lifeCycleObject;
         }
 
         @Override
-        public synchronized void _setLifeCycleObject(Object lifeCycleObject) {
+        public void _setLifeCycleObject(Object lifeCycleObject) {
             this.lifeCycleObject = lifeCycleObject;
         }
         public SimpleInnerClassProxyClassForBroadcastReceiver(BroadcastReceiver innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
         @Override
-        public synchronized void onReceive(Context context, Intent intent) {
+        public void onReceive(Context context, Intent intent) {
             if(innerClassInstance != null){
                 innerClassInstance.onReceive(context,intent);
             }
         }
 
         @Override
-        public synchronized BroadcastReceiver getInnerClassInstance() {
+        public BroadcastReceiver getInnerClassInstance() {
             return innerClassInstance;
         }
 
         @Override
-        public synchronized void clearInnerClassInstance() {
+        public void clearInnerClassInstance() {
             delayTask = null;
             innerClassInstance = null;
             implicitReferenceChecker = null;
@@ -1092,32 +1092,32 @@ public class InnerClassHelper {
         }
 
         @Override
-        public synchronized void setImplicitReferenceFields(List<Field> fields) {
+        public void setImplicitReferenceFields(List<Field> fields) {
             this.fields = fields;
         }
 
         @Override
-        public synchronized List<Field> getImplicitReferenceFields() {
+        public List<Field> getImplicitReferenceFields() {
             return fields;
         }
 
         @Override
-        public synchronized void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
+        public void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
             this.implicitReferenceChecker = implicitReferenceChecker;
         }
 
         @Override
-        public synchronized ImplicitReferenceChecker getImplicitReferenceChecker() {
+        public ImplicitReferenceChecker getImplicitReferenceChecker() {
             return implicitReferenceChecker;
         }
 
         @Override
-        public synchronized void setDelayCheckTask(Runnable delayTask) {
+        public void setDelayCheckTask(Runnable delayTask) {
             this.delayTask = delayTask;
         }
 
         @Override
-        public final synchronized void notifyNeedCheck() {
+        public final void notifyNeedCheck() {
             if(delayTask != null){
                 delayTask.run();
                 delayTask = null;
