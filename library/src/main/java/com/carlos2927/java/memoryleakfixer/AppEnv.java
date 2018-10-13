@@ -57,8 +57,8 @@ public class AppEnv {
         }
     }.call();
 
-    public static final int LibVersionCode = 11;
-    public static final String LibVersion = "v1.1.8";
+    public static final int LibVersionCode = 12;
+    public static final String LibVersion = "v1.1.9";
 
     /**
      * InnerClassHelper.InnerClassTargetList列表无数据时循环检测线程休眠时间
