@@ -548,7 +548,7 @@ public class InnerClassHelper {
                         }
                     }
 
-                    if(cls_v4_fragment.isInstance(lifeCycleObject) && checkFragmentV4State(lifeCycleObject) || (!checkFragmentV4NoInLifeCycle(lifeCycleObject) && checkFragmentV4State(lifeCycleObject))){
+                    if(cls_v4_fragment.isInstance(lifeCycleObject) && (checkFragmentV4State(lifeCycleObject) || (!checkFragmentV4NoInLifeCycle(lifeCycleObject) && checkFragmentV4State(lifeCycleObject)))){
                         return true;
                     }
                     if(Dialog.class.isInstance(lifeCycleObject) && checkDialog((Dialog)lifeCycleObject)){
