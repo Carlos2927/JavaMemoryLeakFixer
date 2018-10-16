@@ -543,12 +543,12 @@ public class InnerClassHelper {
                     }
                     if(Fragment.class.isInstance(lifeCycleObject)){
                         Fragment fragment = (Fragment) lifeCycleObject;
-                        if(checkFragmentState(fragment) || (!checkFragmentNoInLifeCycle(fragment) && checkFragmentState(fragment))){
+                        if(checkFragmentState(fragment) || (!checkFragmentNoInLifeCycle(fragment) && checkFragmentState(fragment)) || checkFragmentIsDestroyed(lifeCycleObject)){
                             return true;
                         }
                     }
 
-                    if(cls_v4_fragment.isInstance(lifeCycleObject) && (checkFragmentV4State(lifeCycleObject) || (!checkFragmentV4NoInLifeCycle(lifeCycleObject) && checkFragmentV4State(lifeCycleObject)))){
+                    if(cls_v4_fragment.isInstance(lifeCycleObject) && (checkFragmentV4State(lifeCycleObject) || (!checkFragmentV4NoInLifeCycle(lifeCycleObject) && checkFragmentV4State(lifeCycleObject)) || checkFragmentIsDestroyed(lifeCycleObject))){
                         return true;
                     }
                     if(Dialog.class.isInstance(lifeCycleObject) && checkDialog((Dialog)lifeCycleObject)){
@@ -591,6 +591,10 @@ public class InnerClassHelper {
                 e.printStackTrace();
             }
             return false;
+        }
+
+        private boolean checkFragmentIsDestroyed(Object fragment){
+            return FragmentDestroyStateGetter.class.isInstance(fragment) && ((FragmentDestroyStateGetter)fragment).isFragmentDestroyed();
         }
         private boolean checkFragmentV4NoInLifeCycle(Object fragment){
             try {
@@ -713,6 +717,9 @@ public class InnerClassHelper {
                             if(checkFragmentState(fragment)){
                                 return true;
                             }
+                            if(checkFragmentIsDestroyed(fragment)){
+                                return true;
+                            }
                             try {
                                 //if the fragment is not call onActivityCreate(),pass check it
                                 if(checkFragmentNoInLifeCycle(fragment)){
@@ -728,6 +735,9 @@ public class InnerClassHelper {
                             Object fragment =  f.get(innerClassInstance);
                             try {
                                 if(checkFragmentV4State(fragment)){
+                                    return true;
+                                }
+                                if(checkFragmentIsDestroyed(fragment)){
                                     return true;
                                 }
                                 try {
