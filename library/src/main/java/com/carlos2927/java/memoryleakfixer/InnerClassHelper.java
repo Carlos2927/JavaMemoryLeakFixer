@@ -107,6 +107,24 @@ public class InnerClassHelper {
     static void initLoopThread(){
         if(!isRunning){
             Thread thread = new Thread(){
+
+                private void clearInnerClassInstanceImplicitReferencesWhenClear(InnerClassTarget innerClassTarget,Object innerClassInstance){
+                    if(innerClassInstance != null){
+                        List<Field> fields = innerClassTarget.getImplicitReferenceFields();
+                        if(fields != null){
+                            for(Field f:fields){
+                                try {
+                                    f.set(innerClassInstance,null);
+                                }catch (Exception e){
+                                    e.printStackTrace();
+                                }
+                            }
+                        }else {
+                            clearInnerClassInstanceImplicitReferences(innerClassInstance,innerClassTarget.getImplicitReferenceChecker());
+                        }
+                    }
+                }
+
                 @Override
                 public void run() {
                     int hashCode = hashCode();
@@ -152,6 +170,9 @@ public class InnerClassHelper {
                                                 //first,check the watched lifecycle object
                                                 if(LifeCycleObjectDirectGetter.class.isInstance(innerClassTarget) && implicitReferenceChecker.checkLifeCycleObjectDestroyed((LifeCycleObjectDirectGetter) innerClassTarget)){
                                                     toDelete.add(innerClassTargetWeakReference);
+                                                    if(innerClassTarget.isNeedClearInnerClassInstanceImplicitReferences()){
+                                                        clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
+                                                    }
                                                     innerClassTarget.clearInnerClassInstance();
                                                     innerClassTargetWeakReference.clear();
                                                     continue;
@@ -160,6 +181,9 @@ public class InnerClassHelper {
                                                 List<Field> fields = innerClassTarget.getImplicitReferenceFields();
                                                 if(fields != null && implicitReferenceChecker.checkImplicitReferenceDestroyed(fields,innerClassInstance)){
                                                     toDelete.add(innerClassTargetWeakReference);
+                                                    if(innerClassTarget.isNeedClearInnerClassInstanceImplicitReferences()){
+                                                        clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
+                                                    }
                                                     innerClassTarget.clearInnerClassInstance();
                                                     innerClassTargetWeakReference.clear();
                                                 }
@@ -234,8 +258,21 @@ public class InnerClassHelper {
         return createProxyInnerClassInstance(innerClassInstance,isDelayCheck,DefaultImplicitReferenceChecker);
     }
 
+    /**
+     * 创建匿名内部类对象的代理类对象,这个方法适合innerClassInstance是在其他匿名内部类中直接创建时调用,直接传入需要监控的lifeCycleObject
+     * @param isNeedClearInnerClassInstanceImplicitReferences 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
+     *                                                           同时需要注意的是当isNeedClearInnerClassInstanceImplicitReferences设置为true时，你必须在匿名内部类对象的方法调用中进行异常处理，防止耗时操作执行后引用外部属性或方法抛出空指针异常引发
+     *                                                         应用崩溃
+     * @param innerClassInstance 创建匿名内部类对象
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
+     * @return 匿名内部类对象的代理类对象
+     */
+    public static <T> T createProxyInnerClassInstance(boolean isNeedClearInnerClassInstanceImplicitReferences,T innerClassInstance){
+        return createProxyInnerClassInstance(null,false,isNeedClearInnerClassInstanceImplicitReferences,innerClassInstance);
+    }
+
     public  static <T> T createProxyInnerClassInstance(T innerClassInstance,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
-        return createProxyInnerClassInstance(null,innerClassInstance,null,isDelayCheck,implicitReferenceChecker);
+        return createProxyInnerClassInstance(null,false,innerClassInstance,null,isDelayCheck,implicitReferenceChecker);
     }
 
     /**
@@ -250,6 +287,38 @@ public class InnerClassHelper {
     }
 
     /**
+     * 创建匿名内部类对象的代理类对象,这个方法适合innerClassInstance是在其他匿名内部类中直接创建时调用,直接传入需要监控的lifeCycleObject
+     * @param isNeedClearInnerClassInstanceImplicitReferences 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
+     *                                                           同时需要注意的是当isNeedClearInnerClassInstanceImplicitReferences设置为true时，你必须在匿名内部类对象的方法调用中进行异常处理，防止耗时操作执行后引用外部属性或方法抛出空指针异常引发
+     *                                                         应用崩溃
+     * @param lifeCycleObject 要监控的有生命周期的对象
+     * @param innerClassInstance 创建匿名内部类对象
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
+     * @return 匿名内部类对象的代理类对象
+     */
+    public static <T> T createProxyInnerClassInstance(boolean isNeedClearInnerClassInstanceImplicitReferences,Object lifeCycleObject,T innerClassInstance){
+        return createProxyInnerClassInstance(lifeCycleObject,false,isNeedClearInnerClassInstanceImplicitReferences,innerClassInstance);
+    }
+
+
+
+    /**
+     * 创建匿名内部类对象的代理类对象,这个方法适合innerClassInstance是在其他匿名内部类中直接创建时调用,直接传入需要监控的lifeCycleObject,当innerClassInstance不是在lifeCycleObject的生命周期方法中创建而是直接在
+     * 变量声明中创建时，isDelayCheck必须设置为true,并在合适的声明周期方法中调用名内部类对象的代理类对象的notifyNeedCheck()方法
+     * @param lifeCycleObject 要监控的有生命周期的对象
+     * @param innerClassInstance 创建匿名内部类对象
+     * @param isNeedClearInnerClassInstanceImplicitReferences 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
+     *                                                           同时需要注意的是当isNeedClearInnerClassInstanceImplicitReferences设置为true时，你必须在匿名内部类对象的方法调用中进行异常处理，防止耗时操作执行后引用外部属性或方法抛出空指针异常引发
+     *                                                         应用崩溃
+     * @param isDelayCheck 设置是否需要延迟检测,如果设置成true,则必须在匿名内部类执行可能导致内存溢出的代码执行之前调用一次 InnerClassTarget.notifyNeedCheck()方法
+     * @param <T> 匿名内部类与其代理类的共同父类或者父接口
+     * @return 匿名内部类对象的代理类对象
+     */
+    public static <T> T createProxyInnerClassInstance(Object lifeCycleObject,boolean isDelayCheck,boolean isNeedClearInnerClassInstanceImplicitReferences,T innerClassInstance){
+        return createProxyInnerClassInstance(lifeCycleObject,isNeedClearInnerClassInstanceImplicitReferences,innerClassInstance,null,isDelayCheck,DefaultImplicitReferenceChecker);
+    }
+
+    /**
      * 创建匿名内部类对象的代理类对象,这个方法适合innerClassInstance是在其他匿名内部类中直接创建时调用,直接传入需要监控的lifeCycleObject,当innerClassInstance不是在lifeCycleObject的生命周期方法中创建而是直接在
      * 变量声明中创建时，isDelayCheck必须设置为true,并在合适的声明周期方法中调用名内部类对象的代理类对象的notifyNeedCheck()方法
      * @param lifeCycleObject 要监控的有生命周期的对象
@@ -259,57 +328,17 @@ public class InnerClassHelper {
      * @return 匿名内部类对象的代理类对象
      */
     public static <T> T createProxyInnerClassInstance(Object lifeCycleObject,boolean isDelayCheck,T innerClassInstance){
-        return createProxyInnerClassInstance(lifeCycleObject,innerClassInstance,null,isDelayCheck,DefaultImplicitReferenceChecker);
+        return createProxyInnerClassInstance( lifeCycleObject, isDelayCheck, false, innerClassInstance);
     }
 
-    /**
-     * 清空匿名内部类默认的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
-     * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
-     * @param innerClassInstance 匿名内部类对象
-     */
-    public static void clearInnerClassInstanceDefaultImplicitReferences(Object innerClassInstance){
-        clearInnerClassInstanceImplicitReferences(innerClassInstance,DefaultImplicitReferenceChecker);
-    }
 
-    /**
-     * 清空匿名内部类所有的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
-     * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
-     * @param innerClassInstance 匿名内部类对象
-     */
-    public static void clearInnerClassInstanceAllImplicitReferences(Object innerClassInstance){
-        clearInnerClassInstanceImplicitReferences(innerClassInstance,null);
-    }
-
-    /**
-     * 清除匿名内部类的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，    
-     * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
-     * @param innerClassInstance 匿名内部类对象
-     * @param implicitReferenceChecker 隐式引用属性检测器
-     */
-    public static void clearInnerClassInstanceImplicitReferences(Object innerClassInstance,ImplicitReferenceChecker implicitReferenceChecker){
-        if(innerClassInstance != null){
-            Class targetClass = innerClassInstance.getClass();
-            List<Field> syntheticFieldsFields = getSyntheticFields(targetClass);
-            if(syntheticFieldsFields != null){
-                for(Field field:syntheticFieldsFields){
-                    try{
-                        field.setAccessible(true);
-                        if(implicitReferenceChecker == null || implicitReferenceChecker.isNeedFilter(field,innerClassInstance)){
-                            field.set(innerClassInstance,null);
-                        }
-                    }catch (Exception e){
-                        e.printStackTrace();
-                    }
-                }
-            }
-        }
-
-
-    }
 
     /**
      * 创建匿名内部类对象的代理类对象
      * @param lifeCycleObject 要监控的有生命周期的对象
+     * @param isNeedClearInnerClassInstanceImplicitReferences 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
+     *                                                          同时需要注意的是当isNeedClearInnerClassInstanceImplicitReferences设置为true时，你必须在匿名内部类对象的方法调用中进行异常处理，防止耗时操作执行后引用外部属性或方法抛出空指针异常引发
+     *                                                          应用崩溃
      * @param innerClassInstance 创建匿名内部类对象
      * @param proxyClass   匿名内部类对象的代理类 传空将使用默认注册的
      * @param isDelayCheck 设置是否需要延迟检测,如果设置成true,则必须在匿名内部类执行可能导致内存溢出的代码执行之前调用一次 InnerClassTarget.notifyNeedCheck()方法
@@ -317,7 +346,7 @@ public class InnerClassHelper {
      * @param <T> 匿名内部类与其代理类的共同父类或者父接口
      * @return 匿名内部类对象的代理类对象
      */
-    public  static <T> T createProxyInnerClassInstance(Object lifeCycleObject,T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
+    public  static <T> T createProxyInnerClassInstance(Object lifeCycleObject,boolean isNeedClearInnerClassInstanceImplicitReferences,T innerClassInstance,Class<? extends InnerClassTarget<T>> proxyClass,boolean isDelayCheck,ImplicitReferenceChecker implicitReferenceChecker){
         if(!isRunning){
             Log.e(TAG,"The Watch Thread Is Not Running! Please Make Sure You Called JavaMemoryLeakFixer.startWatchJavaMemory()!!!");
 //            return null;
@@ -339,6 +368,7 @@ public class InnerClassHelper {
             }
 
             final InnerClassTarget<T> innerClassTarget = (InnerClassTarget<T>) proxyInnerClassInstance;
+            innerClassTarget.setIsNeedClearInnerClassInstanceImplicitReferences(isNeedClearInnerClassInstanceImplicitReferences);
             if(implicitReferenceChecker == null){
                 implicitReferenceChecker = DefaultImplicitReferenceChecker;
             }
@@ -383,6 +413,51 @@ public class InnerClassHelper {
      */
     public static <T> void registerSupperClassOfInnerClassProxyClass(Class<? extends T> proxyClass){
         proxyClassMap.put(findCommonSuperClass(null,proxyClass).getName(),proxyClass);
+    }
+
+    /**
+     * 清空匿名内部类默认的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
+     * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
+     * @param innerClassInstance 匿名内部类对象
+     */
+    public static void clearInnerClassInstanceDefaultImplicitReferences(Object innerClassInstance){
+        clearInnerClassInstanceImplicitReferences(innerClassInstance,DefaultImplicitReferenceChecker);
+    }
+
+    /**
+     * 清空匿名内部类所有的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
+     * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
+     * @param innerClassInstance 匿名内部类对象
+     */
+    public static void clearInnerClassInstanceAllImplicitReferences(Object innerClassInstance){
+        clearInnerClassInstanceImplicitReferences(innerClassInstance,null);
+    }
+
+    /**
+     * 清除匿名内部类的隐式引用属性(对于不好用匿名内部类对象代理类（通过实现InnerClassTarget接口的方式）的匿名内部类对象的java类如Thread，可以清空匿名Thread类对象的隐式引用，防止线程造成内存泄漏，
+     * 注意清空之后不要在匿名内部类对象对象中再调用相关外部类方法与属性，防止导致空指针异常)
+     * @param innerClassInstance 匿名内部类对象
+     * @param implicitReferenceChecker 隐式引用属性检测器
+     */
+    public static void clearInnerClassInstanceImplicitReferences(Object innerClassInstance,ImplicitReferenceChecker implicitReferenceChecker){
+        if(innerClassInstance != null){
+            Class targetClass = innerClassInstance.getClass();
+            List<Field> syntheticFieldsFields = getSyntheticFields(targetClass);
+            if(syntheticFieldsFields != null){
+                for(Field field:syntheticFieldsFields){
+                    try{
+                        field.setAccessible(true);
+                        if(implicitReferenceChecker == null || implicitReferenceChecker.isNeedFilter(field,innerClassInstance)){
+                            field.set(innerClassInstance,null);
+                        }
+                    }catch (Exception e){
+                        e.printStackTrace();
+                    }
+                }
+            }
+        }
+
+
     }
 
 
@@ -847,6 +922,19 @@ public class InnerClassHelper {
     //https://github.com/BryanSharp/hibeaver java字节码修改神器
     public  interface InnerClassTarget<T>{
         /**
+         * 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏
+         * @return 默认情况下建议返回false
+         */
+        boolean isNeedClearInnerClassInstanceImplicitReferences();
+        /**
+         * 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
+         * 同时需要注意的是当isNeedClearInnerClassInstanceImplicitReferences设置为true时，你必须在匿名内部类对象的方法调用中进行异常处理，防止耗时操作执行后引用外部属性或方法抛出空指针异常引发
+         * 应用崩溃
+         * @param isNeedClearInnerClassInstanceImplicitReferences 默认情况下建议设置为false
+         * @return 默认情况下建议返回false
+         */
+        void setIsNeedClearInnerClassInstanceImplicitReferences(boolean isNeedClearInnerClassInstanceImplicitReferences);
+        /**
          * 获取匿名内部类对象
          * @return 匿名内部类对象
          */
@@ -907,6 +995,18 @@ public class InnerClassHelper {
         public SimpleInnerClassProxyClassForRunnable(Runnable innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
+
+        boolean isNeedClearInnerClassInstanceImplicitReferences;
+        @Override
+        public boolean isNeedClearInnerClassInstanceImplicitReferences() {
+            return isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public void setIsNeedClearInnerClassInstanceImplicitReferences(boolean isNeedClearInnerClassInstanceImplicitReferences) {
+            this.isNeedClearInnerClassInstanceImplicitReferences = isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
         @Override
         public Runnable getInnerClassInstance() {
             return innerClassInstance;
@@ -991,6 +1091,17 @@ public class InnerClassHelper {
             this.innerClassInstance = innerClassInstance;
         }
 
+        boolean isNeedClearInnerClassInstanceImplicitReferences;
+        @Override
+        public boolean isNeedClearInnerClassInstanceImplicitReferences() {
+            return isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public void setIsNeedClearInnerClassInstanceImplicitReferences(boolean isNeedClearInnerClassInstanceImplicitReferences) {
+            this.isNeedClearInnerClassInstanceImplicitReferences = isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
         @Override
         public Object _getLifeCycleObject() {
             return lifeCycleObject;
@@ -1068,6 +1179,17 @@ public class InnerClassHelper {
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
         Object lifeCycleObject;
+
+        boolean isNeedClearInnerClassInstanceImplicitReferences;
+        @Override
+        public boolean isNeedClearInnerClassInstanceImplicitReferences() {
+            return isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public void setIsNeedClearInnerClassInstanceImplicitReferences(boolean isNeedClearInnerClassInstanceImplicitReferences) {
+            this.isNeedClearInnerClassInstanceImplicitReferences = isNeedClearInnerClassInstanceImplicitReferences;
+        }
 
         @Override
         public Object _getLifeCycleObject() {
