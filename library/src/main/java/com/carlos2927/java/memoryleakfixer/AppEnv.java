@@ -15,7 +15,8 @@ public class AppEnv {
         public Boolean call() {
             boolean isInAndroid = false;
             try {
-                Class.forName("android.system.Os");
+
+//                Class.forName("android.system.Os"); only Build.VERSION.SDK_INT >= Build.VERSION_CODES.L
                 Class.forName("android.os.Process");
                 Class cls = Class.forName("android.os.Build$VERSION");
                 // Minimum compatibility  Android 2.3
@@ -57,8 +58,8 @@ public class AppEnv {
         }
     }.call();
 
-    public static final int LibVersionCode = 15;
-    public static final String LibVersion = "v1.2.2";
+    public static final int LibVersionCode = 16;
+    public static final String LibVersion = "v1.2.3";
 
     /**
      * InnerClassHelper.InnerClassTargetList列表无数据时循环检测线程休眠时间
