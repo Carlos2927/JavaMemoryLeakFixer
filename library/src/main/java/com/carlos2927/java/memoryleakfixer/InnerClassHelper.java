@@ -356,7 +356,9 @@ public class InnerClassHelper {
         List<Field> syntheticFieldsFields = InnerClassHolderCache.get(key);
         if(syntheticFieldsFields == null){
             syntheticFieldsFields = getSyntheticFields(targetClass);
-            InnerClassHolderCache.put(key,syntheticFieldsFields);
+            if(syntheticFieldsFields != null){
+                InnerClassHolderCache.put(key,syntheticFieldsFields);
+            }
         }
         if(syntheticFieldsFields == null){
             return innerClassInstance;
