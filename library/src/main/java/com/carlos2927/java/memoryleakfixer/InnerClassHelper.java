@@ -332,8 +332,76 @@ public class InnerClassHelper {
     }
 
 
+    /**
+     * 对非匿名内部类对象进行内存监听调用这个方法
+     * @param lifeCycleObject
+     * @param innerClassInstance
+     * @param innerClassInstanceClass
+     * @param <T>
+     * @return
+     */
+    public static <T> T createProxyNoInnerClassInstance(Object lifeCycleObject,T innerClassInstance,Class<T> innerClassInstanceClass){
+        return createProxyNoInnerClassInstance(lifeCycleObject,innerClassInstance,innerClassInstanceClass,false,null);
+    }
 
     /**
+     * 对非匿名内部类对象进行内存监听调用这个方法
+     * @param lifeCycleObject
+     * @param innerClassInstance
+     * @param innerClassInstanceClass
+     * @param isDelayCheck
+     * @param lifeCycleObjectChecker
+     * @param <T>
+     * @return
+     */
+    public static <T> T createProxyNoInnerClassInstance(Object lifeCycleObject,T innerClassInstance,Class<T> innerClassInstanceClass,boolean isDelayCheck,ImplicitReferenceChecker lifeCycleObjectChecker){
+        Class<? extends InnerClassTarget<T>> proxyClass = proxyClassMap.get(innerClassInstanceClass.getName());
+        if(proxyClass!= null && lifeCycleObject != null){
+            try {
+             T   proxyInnerClassInstance = getProxyInnerClassInstance(innerClassInstanceClass,proxyClass,innerClassInstance);
+             if(proxyInnerClassInstance != null){
+                 if(!InnerClassTarget.class.isInstance(proxyInnerClassInstance)){
+                     return innerClassInstance;
+                 }
+
+                 final InnerClassTarget<T> innerClassTarget = (InnerClassTarget<T>) proxyInnerClassInstance;
+                 innerClassTarget.setIsNeedClearInnerClassInstanceImplicitReferences(false);
+                 if(lifeCycleObjectChecker == null){
+                     lifeCycleObjectChecker = DefaultImplicitReferenceChecker;
+                 }
+                 innerClassTarget.setImplicitReferenceChecker(lifeCycleObjectChecker);
+                 if(LifeCycleObjectDirectGetter.class.isInstance(proxyInnerClassInstance)){
+                     LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter = (LifeCycleObjectDirectGetter) proxyInnerClassInstance;
+                     lifeCycleObjectDirectGetter._setLifeCycleObject(lifeCycleObject);
+                 }else {
+                     return innerClassInstance;
+                 }
+                 if(isDelayCheck){
+                     innerClassTarget.setDelayCheckTask(new Runnable() {
+                         @Override
+                         public void run() {
+                             synchronized(lock){
+                                 InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
+                                 lock.notifyAll();
+                             }
+                         }
+                     });
+                 }else {
+                     synchronized(lock){
+                         InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
+                         lock.notifyAll();
+                     }
+                 }
+                 return proxyInnerClassInstance;
+             }
+            } catch (Exception e) {
+
+            }
+        }
+        return innerClassInstance;
+    }
+
+   /**
      * 创建匿名内部类对象的代理类对象
      * @param lifeCycleObject 要监控的有生命周期的对象
      * @param isNeedClearInnerClassInstanceImplicitReferences 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
@@ -361,63 +429,64 @@ public class InnerClassHelper {
             }
         }
         if(syntheticFieldsFields == null){
-            if(lifeCycleObject == null){
-                return innerClassInstance;
-            }
-            // 当innerClassInstance不是匿名内部类对象时
-            Class newTargetClass = null;
-
-            Class supperClass = targetClass;
-            Class newProxyClass = null;
-            while(supperClass != null && supperClass != Object.class){
-                // 如果T为innerClassInstance继承的类 则查出这个类与其代理实现类
-                if(proxyClassMap.get(supperClass.getName())!= null){
-                    newProxyClass = proxyClassMap.get(supperClass.getName());
-                    try {
-                        if(newProxyClass != null){
-                            Constructor constructor = newProxyClass.getDeclaredConstructor(supperClass);
-                            T a =  (T)constructor.newInstance(innerClassInstance);
-                            newTargetClass = supperClass;
-                            break;
-                        }
-                    } catch (Exception e) {
-
-                    }
-
-                }
-                if(newTargetClass == null){
-
-                    // 如果T为innerClassInstance实现的接口 则查出这个接口与其代理实现类
-                    Class[] interfaces = supperClass.getInterfaces();
-                    if(interfaces != null){
-                        for(Class cls :interfaces){
-                            if(proxyClassMap.get(cls.getName())!= null){
-                                newProxyClass = proxyClassMap.get(cls.getName());
-                                try {
-                                    if(newProxyClass != null){
-                                        Constructor constructor = newProxyClass.getDeclaredConstructor(cls);
-                                        T a =  (T)constructor.newInstance(innerClassInstance);
-                                        newTargetClass = cls;
-                                        break;
-                                    }
-                                } catch (Exception e) {
-
-                                }
-                            }
-                        }
-                    }
-
-                }
-                if(newTargetClass != null){
-                    break;
-                }
-                supperClass = supperClass.getSuperclass();
-            }
-            if(newTargetClass == null){
-                return innerClassInstance;
-            }
-            targetClass = newTargetClass;
-            proxyClass =  proxyClassMap.get(newTargetClass.getName());
+            return innerClassInstance;
+//            if(lifeCycleObject == null){
+//                return innerClassInstance;
+//            }
+//            // 当innerClassInstance不是匿名内部类对象时
+//            Class newTargetClass = null;
+//
+//            Class supperClass = targetClass;
+//            Class newProxyClass = null;
+//            while(supperClass != null && supperClass != Object.class){
+//                // 如果T为innerClassInstance继承的类 则查出这个类与其代理实现类
+//                if(proxyClassMap.get(supperClass.getName())!= null){
+//                    newProxyClass = proxyClassMap.get(supperClass.getName());
+//                    try {
+//                        if(newProxyClass != null){
+//                            Constructor constructor = newProxyClass.getDeclaredConstructor(supperClass);
+//                            T a =  (T)constructor.newInstance(innerClassInstance);
+//                            newTargetClass = supperClass;
+//                            break;
+//                        }
+//                    } catch (Exception e) {
+//
+//                    }
+//
+//                }
+//                if(newTargetClass == null){
+//
+//                    // 如果T为innerClassInstance实现的接口 则查出这个接口与其代理实现类
+//                    Class[] interfaces = supperClass.getInterfaces();
+//                    if(interfaces != null){
+//                        for(Class cls :interfaces){
+//                            if(proxyClassMap.get(cls.getName())!= null){
+//                                newProxyClass = proxyClassMap.get(cls.getName());
+//                                try {
+//                                    if(newProxyClass != null){
+//                                        Constructor constructor = newProxyClass.getDeclaredConstructor(cls);
+//                                        T a =  (T)constructor.newInstance(innerClassInstance);
+//                                        newTargetClass = cls;
+//                                        break;
+//                                    }
+//                                } catch (Exception e) {
+//
+//                                }
+//                            }
+//                        }
+//                    }
+//
+//                }
+//                if(newTargetClass != null){
+//                    break;
+//                }
+//                supperClass = supperClass.getSuperclass();
+//            }
+//            if(newTargetClass == null){
+//                return innerClassInstance;
+//            }
+//            targetClass = newTargetClass;
+//            proxyClass =  proxyClassMap.get(newTargetClass.getName());
         }
         T proxyInnerClassInstance = getProxyInnerClassInstance(targetClass,proxyClass,innerClassInstance);
         if(proxyInnerClassInstance != null){
