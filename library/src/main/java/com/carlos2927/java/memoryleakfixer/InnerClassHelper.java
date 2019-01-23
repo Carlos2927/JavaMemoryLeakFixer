@@ -361,7 +361,63 @@ public class InnerClassHelper {
             }
         }
         if(syntheticFieldsFields == null){
-            return innerClassInstance;
+            if(lifeCycleObject == null){
+                return innerClassInstance;
+            }
+            // 当innerClassInstance不是匿名内部类对象时
+            Class newTargetClass = null;
+
+            Class supperClass = targetClass;
+            Class newProxyClass = null;
+            while(supperClass != null && supperClass != Object.class){
+                // 如果T为innerClassInstance继承的类 则查出这个类与其代理实现类
+                if(proxyClassMap.get(supperClass.getName())!= null){
+                    newProxyClass = proxyClassMap.get(supperClass.getName());
+                    try {
+                        if(newProxyClass != null){
+                            Constructor constructor = newProxyClass.getDeclaredConstructor(supperClass);
+                            T a =  (T)constructor.newInstance(innerClassInstance);
+                            newTargetClass = supperClass;
+                            break;
+                        }
+                    } catch (Exception e) {
+
+                    }
+
+                }
+                if(newTargetClass == null){
+
+                    // 如果T为innerClassInstance实现的接口 则查出这个接口与其代理实现类
+                    Class[] interfaces = supperClass.getInterfaces();
+                    if(interfaces != null){
+                        for(Class cls :interfaces){
+                            if(proxyClassMap.get(cls.getName())!= null){
+                                newProxyClass = proxyClassMap.get(cls.getName());
+                                try {
+                                    if(newProxyClass != null){
+                                        Constructor constructor = newProxyClass.getDeclaredConstructor(cls);
+                                        T a =  (T)constructor.newInstance(innerClassInstance);
+                                        newTargetClass = cls;
+                                        break;
+                                    }
+                                } catch (Exception e) {
+
+                                }
+                            }
+                        }
+                    }
+
+                }
+                if(newTargetClass != null){
+                    break;
+                }
+                supperClass = supperClass.getSuperclass();
+            }
+            if(newTargetClass == null){
+                return innerClassInstance;
+            }
+            targetClass = newTargetClass;
+            proxyClass =  proxyClassMap.get(newTargetClass.getName());
         }
         T proxyInnerClassInstance = getProxyInnerClassInstance(targetClass,proxyClass,innerClassInstance);
         if(proxyInnerClassInstance != null){
@@ -478,19 +534,17 @@ public class InnerClassHelper {
         Class innerClassSuperClass = innerClass!=null?innerClass.getSuperclass():null;
         Class[] proxyClassInterfaces = proxyClass != null?proxyClass.getInterfaces():null;
         Class proxyClassSuperClass = proxyClass != null?proxyClass.getSuperclass():null;
-        if(innerClass != null){
-            if(interfaces != null && interfaces.length>0){
-                if(proxyClassInterfaces != null && proxyClassInterfaces.length>1){
-                    for(Class cls:interfaces){
-                        for(Class c:proxyClassInterfaces){
-                            if(cls == c &&  cls != InnerClassTarget.class && cls != LifeCycleObjectDirectGetter.class){
-                                return cls;
-                            }
+        if(interfaces != null && interfaces.length>0){
+            if(proxyClassInterfaces != null && proxyClassInterfaces.length>1){
+                for(Class cls:interfaces){
+                    for(Class c:proxyClassInterfaces){
+                        if(cls == c &&  cls != InnerClassTarget.class && cls != LifeCycleObjectDirectGetter.class){
+                            return cls;
                         }
                     }
-                }else {
-                    return interfaces[0];
                 }
+            }else {
+                return interfaces[0];
             }
             return innerClassSuperClass;
         }else {
@@ -778,9 +832,9 @@ public class InnerClassHelper {
                             if(view == null){
                                 return true;
                             }
-                           if(checkView(view)){
+                            if(checkView(view)){
                                 return true;
-                           }
+                            }
                         }else if(Context.class.isAssignableFrom(type)){
                             context = (Context) f.get(innerClassInstance);
                             if(context == null){
@@ -901,7 +955,7 @@ public class InnerClassHelper {
     /**
      * 需要检测的防止引发内存泄漏的具有生命周期的对象直接获取器,而不是通过匿名内部类隐式引用属性检测器(ImplicitReferenceChecker)间接去获取该对象,
      * 这种方式有助于提高性能,这在多重匿名内部类中很有用。
-     * 
+     *
      */
     public interface LifeCycleObjectDirectGetter {
         /***
