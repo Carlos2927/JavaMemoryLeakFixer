@@ -635,7 +635,7 @@ public class InnerClassHelper {
             }
 
         }
-        return null;
+        return innerClassSuperClass;
     }
 
     public static <T> T getProxyInnerClassInstance(Class innerClass,Class<? extends InnerClassTarget<T>> proxyClass,T innerClassInstance){
