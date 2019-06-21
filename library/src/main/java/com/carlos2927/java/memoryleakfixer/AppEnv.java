@@ -42,6 +42,18 @@ public class AppEnv {
         }
     }.call();
 
+    public static final boolean HasAndroidX = new MyCallable<Boolean>(){
+        @Override
+        public Boolean call() {
+            try {
+                Class.forName("androidx.fragment.app.FragmentActivity");
+                return IsInAndroidPlatform;
+            }catch (Exception e){
+            }
+            return false;
+        }
+    }.call();
+
     /**
      * 检测是否支持java8
      */
@@ -58,8 +70,8 @@ public class AppEnv {
         }
     }.call();
 
-    public static final int LibVersionCode = 19;
-    public static final String LibVersion = "v1.2.4-beta3";
+    public static final int LibVersionCode = 20;
+    public static final String LibVersion = "v1.2.4-beta4";
 
     /**
      * InnerClassHelper.InnerClassTargetList列表无数据时循环检测线程休眠时间

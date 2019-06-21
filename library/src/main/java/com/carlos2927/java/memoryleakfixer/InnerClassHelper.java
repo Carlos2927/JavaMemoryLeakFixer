@@ -683,10 +683,18 @@ public class InnerClassHelper {
 
     private static final ImplicitReferenceChecker DefaultImplicitReferenceChecker = new ImplicitReferenceChecker(){
         Class cls_v4_fragment;
+        Class cls_x_fragment;
         @Override
         public boolean isNeedFilter(Field field,Object innerClassInstance) {
             if(innerClassInstance != null && field != null){
                 try {
+                    if(AppEnv.HasAndroidX && cls_x_fragment == null){
+                        try {
+                            cls_x_fragment = Class.forName("androidx.fragment.app.Fragment");
+                        }catch (Exception e){
+                            e.printStackTrace();
+                        }
+                    }
                     if(AppEnv.HasAndroidSupportLibraryV4 && cls_v4_fragment == null){
                         try {
                             cls_v4_fragment = Class.forName("android.support.v4.app.Fragment");
@@ -702,6 +710,7 @@ public class InnerClassHelper {
                             if(View.class.isAssignableFrom(type) || Context.class.isAssignableFrom(type)
                                     || (AppEnv.AndroidSDK_INT >= Build.VERSION_CODES.HONEYCOMB && Fragment.class.isAssignableFrom(type))
                                     || Dialog.class.isAssignableFrom(type) || PopupWindow.class.isAssignableFrom(type)
+                                    || (cls_x_fragment !=null  && cls_x_fragment.isAssignableFrom(type))
                                     || (cls_v4_fragment !=null  && cls_v4_fragment.isAssignableFrom(type))){
                                 return true;
                             }
@@ -721,6 +730,13 @@ public class InnerClassHelper {
 
         @Override
         public boolean checkLifeCycleObjectDestroyed(LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter) {
+            if(AppEnv.HasAndroidX && cls_x_fragment == null){
+                try {
+                    cls_v4_fragment = Class.forName("androidx.fragment.app.Fragment");
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
+            }
             if(AppEnv.HasAndroidSupportLibraryV4 && cls_v4_fragment == null){
                 try {
                     cls_v4_fragment = Class.forName("android.support.v4.app.Fragment");
@@ -747,10 +763,13 @@ public class InnerClassHelper {
                             return true;
                         }
                     }
-
-                    if(cls_v4_fragment.isInstance(lifeCycleObject) && (checkFragmentV4State(lifeCycleObject) || (!checkFragmentV4NoInLifeCycle(lifeCycleObject) && checkFragmentV4State(lifeCycleObject)) || checkFragmentIsDestroyed(lifeCycleObject))){
+                    if(cls_x_fragment != null && cls_x_fragment.isInstance(lifeCycleObject) && (checkFragmentCompatState(lifeCycleObject) || (!checkFragmentCompatNoInLifeCycle(lifeCycleObject) && checkFragmentCompatState(lifeCycleObject)) || checkFragmentIsDestroyed(lifeCycleObject))){
                         return true;
                     }
+                    if( cls_v4_fragment != null && cls_v4_fragment.isInstance(lifeCycleObject) && (checkFragmentCompatState(lifeCycleObject) || (!checkFragmentCompatNoInLifeCycle(lifeCycleObject) && checkFragmentCompatState(lifeCycleObject)) || checkFragmentIsDestroyed(lifeCycleObject))){
+                        return true;
+                    }
+
                     if(Dialog.class.isInstance(lifeCycleObject) && checkDialog((Dialog)lifeCycleObject)){
                         return true;
                     }
@@ -796,9 +815,14 @@ public class InnerClassHelper {
         private boolean checkFragmentIsDestroyed(Object fragment){
             return FragmentDestroyStateGetter.class.isInstance(fragment) && ((FragmentDestroyStateGetter)fragment).isFragmentDestroyed();
         }
-        private boolean checkFragmentV4NoInLifeCycle(Object fragment){
+        private boolean checkFragmentCompatNoInLifeCycle(Object fragment){
             try {
-                return JavaReflectUtils.getField(cls_v4_fragment,"mState").getInt(fragment)<2;
+                if(cls_x_fragment != null){
+                    return JavaReflectUtils.getField(cls_x_fragment,"mState").getInt(fragment)<2;
+                }
+                if(cls_v4_fragment != null){
+                    return JavaReflectUtils.getField(cls_v4_fragment,"mState").getInt(fragment)<2;
+                }
             }catch (Exception e){
                 e.printStackTrace();
             }
@@ -812,10 +836,18 @@ public class InnerClassHelper {
             return false;
         }
 
-        private  boolean checkFragmentV4State(Object fragment) throws Exception{
-            if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_v4_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_v4_fragment,"isDetached").invoke(fragment)){
-                return true;
+        private  boolean checkFragmentCompatState(Object fragment) throws Exception{
+            if(cls_x_fragment != null){
+                if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_x_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_x_fragment,"isDetached").invoke(fragment)){
+                    return true;
+                }
             }
+            if(cls_v4_fragment != null){
+                if(fragment == null || (Boolean) JavaReflectUtils.getMethod(cls_v4_fragment,"isRemoving").invoke(fragment)  || (Boolean)JavaReflectUtils.getMethod(cls_v4_fragment,"isDetached").invoke(fragment)){
+                    return true;
+                }
+            }
+
             return false;
         }
 
@@ -838,14 +870,26 @@ public class InnerClassHelper {
             return false;
         }
 
-        private boolean checkFragmentV4Context(Object fragment) throws Exception{
-            Context context = (Context) JavaReflectUtils.getMethod(cls_v4_fragment,"getContext").invoke(fragment);
-            if(context == null){
-                return true;
+        private boolean checkFragmentCompatContext(Object fragment) throws Exception{
+            if(cls_x_fragment != null){
+                Context context = (Context) JavaReflectUtils.getMethod(cls_x_fragment,"getContext").invoke(fragment);
+                if(context == null){
+                    return true;
+                }
+                Activity activity = (Activity) JavaReflectUtils.getMethod(cls_x_fragment,"getActivity").invoke(fragment);
+                if (isActivityDestroyed(activity)) {
+                    return true;
+                }
             }
-            Activity activity = (Activity) JavaReflectUtils.getMethod(cls_v4_fragment,"getActivity").invoke(fragment);
-            if (isActivityDestroyed(activity)) {
-                return true;
+            if(cls_v4_fragment != null){
+                Context context = (Context) JavaReflectUtils.getMethod(cls_v4_fragment,"getContext").invoke(fragment);
+                if(context == null){
+                    return true;
+                }
+                Activity activity = (Activity) JavaReflectUtils.getMethod(cls_v4_fragment,"getActivity").invoke(fragment);
+                if (isActivityDestroyed(activity)) {
+                    return true;
+                }
             }
             return false;
         }
@@ -931,10 +975,10 @@ public class InnerClassHelper {
                             if(checkFragmentContext(fragment)){
                                 return true;
                             }
-                        }else if(cls_v4_fragment !=null  && cls_v4_fragment.isAssignableFrom(type)){
+                        }else if((cls_x_fragment !=null  && cls_x_fragment.isAssignableFrom(type)) || (cls_v4_fragment !=null  && cls_v4_fragment.isAssignableFrom(type))){
                             Object fragment =  f.get(innerClassInstance);
                             try {
-                                if(checkFragmentV4State(fragment)){
+                                if(checkFragmentCompatState(fragment)){
                                     return true;
                                 }
                                 if(checkFragmentIsDestroyed(fragment)){
@@ -942,13 +986,13 @@ public class InnerClassHelper {
                                 }
                                 try {
                                     //if the fragment is not call onActivityCreate(),pass check it
-                                    if(checkFragmentV4NoInLifeCycle(fragment)){
+                                    if(checkFragmentCompatNoInLifeCycle(fragment)){
                                         continue;
                                     }
                                 }catch (Exception e){
                                     e.printStackTrace();
                                 }
-                                if(checkFragmentV4Context(fragment)){
+                                if(checkFragmentCompatContext(fragment)){
                                     return true;
                                 }
                             }catch (Exception e){
