@@ -170,10 +170,12 @@ public class InnerClassHelper {
                                                 //first,check the watched lifecycle object
                                                 if(LifeCycleObjectDirectGetter.class.isInstance(innerClassTarget) && implicitReferenceChecker.checkLifeCycleObjectDestroyed((LifeCycleObjectDirectGetter) innerClassTarget)){
                                                     toDelete.add(innerClassTargetWeakReference);
-                                                    if(innerClassTarget.isNeedClearInnerClassInstanceImplicitReferences()){
-                                                        clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
+                                                    synchronized (innerClassTarget){
+                                                        if(innerClassTarget.isNeedClearInnerClassInstanceImplicitReferences()){
+                                                            clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
+                                                        }
+                                                        innerClassTarget.clearInnerClassInstance();
                                                     }
-                                                    innerClassTarget.clearInnerClassInstance();
                                                     innerClassTargetWeakReference.clear();
                                                     continue;
                                                 }
@@ -181,15 +183,19 @@ public class InnerClassHelper {
                                                 List<Field> fields = innerClassTarget.getImplicitReferenceFields();
                                                 if(fields != null && implicitReferenceChecker.checkImplicitReferenceDestroyed(fields,innerClassInstance)){
                                                     toDelete.add(innerClassTargetWeakReference);
-                                                    if(innerClassTarget.isNeedClearInnerClassInstanceImplicitReferences()){
-                                                        clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
+                                                    synchronized (innerClassTarget){
+                                                        if(innerClassTarget.isNeedClearInnerClassInstanceImplicitReferences()){
+                                                            clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
+                                                        }
+                                                        innerClassTarget.clearInnerClassInstance();
                                                     }
-                                                    innerClassTarget.clearInnerClassInstance();
                                                     innerClassTargetWeakReference.clear();
                                                 }
                                             }
                                         }else {
-                                            innerClassTarget.clearInnerClassInstance();
+                                            synchronized (innerClassTarget){
+                                                innerClassTarget.clearInnerClassInstance();
+                                            }
                                             toDelete.add(innerClassTargetWeakReference);
                                             innerClassTargetWeakReference.clear();
                                         }
@@ -1150,6 +1156,27 @@ public class InnerClassHelper {
         void notifyNeedCheck();
     }
 
+    /**
+     * 在匿名内部类代理对象的方法中处理匿名内部类对象对应的方法
+     * @param innerClassTarget  匿名内部类代理对象
+     * @param task 匿名内部类对象执行的对应方法中执行的任务
+     * @return true 已处理 false 无法处理，因为匿名内部类代理对象所代理的对象已被清空
+     */
+    public static boolean handleInnerClassInstanceTask(InnerClassTarget innerClassTarget,Runnable task){
+        Object innerClassInstance = innerClassTarget.getInnerClassInstance();
+        if(innerClassInstance != null){
+            synchronized (innerClassInstance){
+                if(innerClassTarget.getInnerClassInstance() != null){
+                    task.run();
+                    return true;
+                }else {
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
 
 
     /**
@@ -1226,9 +1253,12 @@ public class InnerClassHelper {
 
         @Override
         public void run() {
-            if(innerClassInstance != null){
-                innerClassInstance.run();
-            }else {
+            if(handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    innerClassInstance.run();
+                }
+            })){
                 Log.w(TAG,"innerClassInstance已被清空");
             }
         }
@@ -1327,15 +1357,25 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void handleMessage(Message msg) {
-            if(innerClassInstance != null){
-                innerClassInstance.handleMessage(msg);
-            }
+        public void handleMessage(final Message msg) {
+            handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    innerClassInstance.handleMessage(msg);
+                }
+            });
         }
 
         @Override
-        public boolean sendMessageAtTime(Message msg, long uptimeMillis) {
-            return innerClassInstance == null || innerClassInstance.sendMessageAtTime(msg,uptimeMillis);
+        public boolean sendMessageAtTime(final Message msg,final long uptimeMillis) {
+            final boolean[] result = {false};
+            handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    result[0] = innerClassInstance.sendMessageAtTime(msg,uptimeMillis);
+                }
+            });
+            return result[0];
         }
     }
 
@@ -1373,10 +1413,13 @@ public class InnerClassHelper {
             this.innerClassInstance = innerClassInstance;
         }
         @Override
-        public void onReceive(Context context, Intent intent) {
-            if(innerClassInstance != null){
-                innerClassInstance.onReceive(context,intent);
-            }
+        public void onReceive(final Context context,final Intent intent) {
+            handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    innerClassInstance.onReceive(context,intent);
+                }
+            });
         }
 
         @Override
