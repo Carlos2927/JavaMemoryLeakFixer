@@ -1183,7 +1183,7 @@ public class InnerClassHelper {
      * Runnable的简单的匿名内部类代理类
      */
     public static class SimpleInnerClassProxyClassForRunnable implements Runnable,InnerClassTarget<Runnable>,LifeCycleObjectDirectGetter {
-        Runnable innerClassInstance;
+        volatile Runnable innerClassInstance;
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
@@ -1283,7 +1283,7 @@ public class InnerClassHelper {
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
-        Handler innerClassInstance;
+        volatile Handler innerClassInstance;
         Object lifeCycleObject;
         public SimpleInnerClassProxyClassForHandler(Handler innerClassInstance){
             super(innerClassInstance.getLooper());
@@ -1383,7 +1383,7 @@ public class InnerClassHelper {
      * BroadcastReceiver的简单的匿名内部类代理类
      */
     public static class SimpleInnerClassProxyClassForBroadcastReceiver extends BroadcastReceiver implements InnerClassTarget<BroadcastReceiver>,LifeCycleObjectDirectGetter {
-        BroadcastReceiver innerClassInstance;
+        volatile BroadcastReceiver innerClassInstance;
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
