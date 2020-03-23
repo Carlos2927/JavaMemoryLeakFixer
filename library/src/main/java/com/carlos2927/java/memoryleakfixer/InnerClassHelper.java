@@ -14,9 +14,11 @@ import android.util.LruCache;
 import android.view.View;
 import android.widget.PopupWindow;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -1177,17 +1179,291 @@ public class InnerClassHelper {
         return false;
     }
 
+    public static interface ThrowExceptionTask{
+        void call() throws Throwable;
+    }
+
+    public static class InnerClassTargetWrapperException extends Exception{
+        public InnerClassTargetWrapperException(String message) {
+            super(message);
+        }
+
+        public InnerClassTargetWrapperException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+        public InnerClassTargetWrapperException(Throwable cause) {
+            super(cause);
+        }
+
+        public <T extends Exception> T getCheckedException(Class<T> guessedThrowExceptionClass){
+            Exception exception = (Exception) getCause();
+            if(guessedThrowExceptionClass.isInstance(exception)){
+                return (T) exception;
+            }
+            return null;
+        }
+    }
+
+
+    /**
+     * 在匿名内部类代理对象的方法中处理匿名内部类对象对应的方法,代理方法需要抛异常的请使用这个方法替换handleInnerClassInstanceTask()方法
+     * @param innerClassTarget  匿名内部类代理对象
+     * @param task 匿名内部类对象执行的对应方法中执行的任务
+     * @return true 已处理 false 无法处理，因为匿名内部类代理对象所代理的对象已被清空
+     */
+    public static boolean handleInnerClassInstanceTaskThrowException(InnerClassTarget innerClassTarget,ThrowExceptionTask task) throws InnerClassTargetWrapperException{
+        Object innerClassInstance = innerClassTarget.getInnerClassInstance();
+        if(innerClassInstance != null){
+            synchronized (innerClassInstance){
+                if(innerClassTarget.getInnerClassInstance() != null){
+                   try{
+                       task.call();
+                   }
+                   catch (RuntimeException e){
+                       throw e;
+                   }catch (Error e){
+                       throw e;
+                   }
+                   catch (Throwable e){
+                       throw new InnerClassTargetWrapperException(e);
+                   }
+                    return true;
+                }else {
+                    return false;
+                }
+            }
+        }
+        return false;
+    }
+
+    private interface ThrowableMethodProxySample{
+        void noThrowException();
+        Object noThrowExceptionWithReturnValue();
+        void throwError() throws NoClassDefFoundError;
+        void throwUnCheckedException() throws NullPointerException;
+        void throwCheckedException() throws IOException;
+        void throwCheckedException1() throws SQLException;
+        void throwsExceptions() throws IOException,NullPointerException,SQLException,NoClassDefFoundError;
+    }
+
+    /**
+     * 这个样例用于帮助开发者理解 handleInnerClassInstanceTaskThrowException()与  handleInnerClassInstanceTask()的用法,
+     * 在代理方法签名中有抛出异常时应该用handleInnerClassInstanceTaskThrowException()，
+     * 没有抛出异常时使用 handleInnerClassInstanceTask()。
+     */
+    public static class ThrowableMethodProxySampleGuidanceExample implements ThrowableMethodProxySample,InnerClassTarget<ThrowableMethodProxySample>,LifeCycleObjectDirectGetter{
+        volatile ThrowableMethodProxySample innerClassInstance;
+        List<Field> fields;
+        ImplicitReferenceChecker implicitReferenceChecker;
+        Runnable delayTask;
+        Object lifeCycleObject;
+        boolean isNeedClearInnerClassInstanceImplicitReferences;
+        public ThrowableMethodProxySampleGuidanceExample(ThrowableMethodProxySample innerClassInstance){
+            this.innerClassInstance = innerClassInstance;
+        }
+        @Override
+        public boolean isNeedClearInnerClassInstanceImplicitReferences() {
+            return isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public void setIsNeedClearInnerClassInstanceImplicitReferences(boolean isNeedClearInnerClassInstanceImplicitReferences) {
+            this.isNeedClearInnerClassInstanceImplicitReferences = isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public ThrowableMethodProxySample getInnerClassInstance() {
+            return innerClassInstance;
+        }
+
+        @Override
+        public void clearInnerClassInstance() {
+            innerClassInstance = null;
+            fields = null;
+            implicitReferenceChecker = null;
+            lifeCycleObject = null;
+        }
+
+        @Override
+        public void setImplicitReferenceFields(List<Field> fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public List<Field> getImplicitReferenceFields() {
+            return fields;
+        }
+
+        @Override
+        public void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
+            this.implicitReferenceChecker = implicitReferenceChecker;
+        }
+
+
+        @Override
+        public ImplicitReferenceChecker getImplicitReferenceChecker() {
+            return implicitReferenceChecker;
+        }
+
+        @Override
+        public void setDelayCheckTask(Runnable delayTask) {
+            this.delayTask = delayTask;
+        }
+
+        @Override
+        public void notifyNeedCheck() {
+            //保证延迟检测任务只执行一次
+            if(delayTask != null){
+                delayTask.run();
+                delayTask = null;
+            }
+        }
+
+
+        @Override
+        public Object _getLifeCycleObject() {
+            return lifeCycleObject;
+        }
+
+        @Override
+        public void _setLifeCycleObject(Object lifeCycleObject) {
+            this.lifeCycleObject = lifeCycleObject;
+        }
+
+        @Override
+        public void noThrowException() {
+            // noThrowException()没有抛出异常，直接使用handleInnerClassInstanceTask()
+            handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    innerClassInstance.noThrowException();
+                }
+            });
+        }
+
+        @Override
+        public Object noThrowExceptionWithReturnValue() {
+            // 代理方法有返回值时可以这么处理
+            final Object[] result = {null};
+            handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    result[0] = innerClassInstance.noThrowExceptionWithReturnValue();
+                }
+            });
+            return result[0];
+        }
+
+        @Override
+        public void throwError() throws NoClassDefFoundError {
+            // throwError() 抛出错误不需要自己处理
+            try {
+                handleInnerClassInstanceTaskThrowException(this, new ThrowExceptionTask() {
+                    @Override
+                    public void call() throws Throwable {
+                        innerClassInstance.throwError();
+                    }
+                });
+            } catch (InnerClassTargetWrapperException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void throwUnCheckedException() throws NullPointerException {
+            // throwUnCheckedException() 抛出非检测异常（主要是运行时异常）不需要自己处理
+            try {
+                handleInnerClassInstanceTaskThrowException(this, new ThrowExceptionTask() {
+                    @Override
+                    public void call() throws Throwable {
+                        innerClassInstance.throwUnCheckedException();
+                    }
+                });
+            } catch (InnerClassTargetWrapperException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void throwCheckedException() throws IOException {
+            // throwCheckedException() 抛出检测型异常（不继承RuntimeException的异常），需要自己处理，如果不自己抛出，这里就会被拦截捕获
+            try {
+                handleInnerClassInstanceTaskThrowException(this, new ThrowExceptionTask() {
+                    @Override
+                    public void call() throws Throwable {
+                        innerClassInstance.throwCheckedException();
+                    }
+                });
+            } catch (InnerClassTargetWrapperException e) {
+                e.printStackTrace();
+                IOException checkedException = e.getCheckedException(IOException.class);
+                if(checkedException != null){
+                    throw checkedException;
+                }
+            }
+        }
+
+        @Override
+        public void throwCheckedException1() throws SQLException {
+            // throwCheckedException1() 抛出检测型异常（不继承RuntimeException的异常），需要自己处理，如果不自己抛出，这里就会被拦截捕获
+            try {
+                handleInnerClassInstanceTaskThrowException(this, new ThrowExceptionTask() {
+                    @Override
+                    public void call() throws Throwable {
+                        innerClassInstance.throwCheckedException1();
+                    }
+                });
+            } catch (InnerClassTargetWrapperException e) {
+                e.printStackTrace();
+                SQLException checkedException = e.getCheckedException(SQLException.class);
+                if(checkedException != null){
+                    throw checkedException;
+                }
+            }
+        }
+
+        @Override
+        public void throwsExceptions() throws IOException, NullPointerException, SQLException, NoClassDefFoundError {
+            // throwsExceptions() 方法抛出了错误与异常，只需要处理检测型异常就行
+            try {
+                handleInnerClassInstanceTaskThrowException(this, new ThrowExceptionTask() {
+                    @Override
+                    public void call() throws Throwable {
+                        innerClassInstance.throwsExceptions();
+                    }
+                });
+            } catch (InnerClassTargetWrapperException e) {
+                e.printStackTrace();
+                Exception checkedException = e.getCheckedException(SQLException.class);
+                if(checkedException != null){
+                    throw (SQLException)checkedException;
+                }
+                checkedException = e.getCheckedException(IOException.class);
+                if(checkedException != null){
+                    throw (IOException)checkedException;
+                }
+                // NullPointerException是运行时异常，不需要处理，这里也捕获不到
+                // NoClassDefFoundError 所有错误都不需要处理，这里也捕获不到
+            }
+        }
+    }
+
+
+
 
 
     /**
      * Runnable的简单的匿名内部类代理类
      */
+    @Keep
     public static class SimpleInnerClassProxyClassForRunnable implements Runnable,InnerClassTarget<Runnable>,LifeCycleObjectDirectGetter {
         volatile Runnable innerClassInstance;
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
         Object lifeCycleObject;
+        @Keep
         public SimpleInnerClassProxyClassForRunnable(Runnable innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }
@@ -1251,6 +1527,17 @@ public class InnerClassHelper {
             }
         }
 
+
+        @Override
+        public Object _getLifeCycleObject() {
+            return lifeCycleObject;
+        }
+
+        @Override
+        public void _setLifeCycleObject(Object lifeCycleObject) {
+            this.lifeCycleObject = lifeCycleObject;
+        }
+
         @Override
         public void run() {
             if(handleInnerClassInstanceTask(this, new Runnable() {
@@ -1262,16 +1549,6 @@ public class InnerClassHelper {
                 Log.w(TAG,"innerClassInstance已被清空");
             }
         }
-
-        @Override
-        public Object _getLifeCycleObject() {
-            return lifeCycleObject;
-        }
-
-        @Override
-        public void _setLifeCycleObject(Object lifeCycleObject) {
-            this.lifeCycleObject = lifeCycleObject;
-        }
     }
 
 
@@ -1279,12 +1556,14 @@ public class InnerClassHelper {
     /**
      * Handler的简单的匿名内部类代理类
      */
+    @Keep
     public static class SimpleInnerClassProxyClassForHandler extends Handler implements InnerClassTarget<Handler>,LifeCycleObjectDirectGetter {
         List<Field> fields;
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
         volatile Handler innerClassInstance;
         Object lifeCycleObject;
+        @Keep
         public SimpleInnerClassProxyClassForHandler(Handler innerClassInstance){
             super(innerClassInstance.getLooper());
             this.innerClassInstance = innerClassInstance;
@@ -1382,6 +1661,7 @@ public class InnerClassHelper {
     /**
      * BroadcastReceiver的简单的匿名内部类代理类
      */
+    @Keep
     public static class SimpleInnerClassProxyClassForBroadcastReceiver extends BroadcastReceiver implements InnerClassTarget<BroadcastReceiver>,LifeCycleObjectDirectGetter {
         volatile BroadcastReceiver innerClassInstance;
         List<Field> fields;
@@ -1409,6 +1689,7 @@ public class InnerClassHelper {
         public void _setLifeCycleObject(Object lifeCycleObject) {
             this.lifeCycleObject = lifeCycleObject;
         }
+        @Keep
         public SimpleInnerClassProxyClassForBroadcastReceiver(BroadcastReceiver innerClassInstance){
             this.innerClassInstance = innerClassInstance;
         }

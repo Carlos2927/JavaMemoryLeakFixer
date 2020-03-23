@@ -196,7 +196,8 @@ public class JavaReflectUtils {
             argsFlag = stringBuffer.toString();
         }
         int lastDotIndex = className.lastIndexOf(".");
-        String key = String.format("%s_init(%s)",className.substring(lastDotIndex != -1?lastDotIndex:0),argsFlag);
+        String substring = className.substring(lastDotIndex != -1 ? lastDotIndex : 0);
+        String key = String.format("%s_init(%s)",substring,argsFlag);
         Constructor constructor = (Constructor) cache.get(key);
         if(constructor == null){
             try {
@@ -208,7 +209,8 @@ public class JavaReflectUtils {
                 cache.put(key,Constructor_NO_FIND);
             }
         }else if(constructor == Constructor_NO_FIND){
-            Log.e("JavaReflectUtils","No Such Constructor: "+className.substring(lastDotIndex != -1?lastDotIndex:0)+"("+argsFlag+") in class: "+className);
+
+            Log.e("JavaReflectUtils","No Such Constructor: "+ substring +"("+argsFlag+") in class: "+className);
             return null;
         }
         return constructor;

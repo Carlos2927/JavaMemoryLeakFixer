@@ -167,7 +167,6 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         AppEnv.setInnerClassHelperLoopCheckingThreadFindEmptyListSleepDuration(100);
-
         final Runnable task = InnerClassHelper.createProxyInnerClassInstance(new Runnable() {
             @Override
             public void run() {
