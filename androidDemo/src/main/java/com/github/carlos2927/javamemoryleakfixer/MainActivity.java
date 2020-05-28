@@ -1,6 +1,7 @@
 package com.github.carlos2927.javamemoryleakfixer;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.support.v4.util.Pools;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -8,6 +9,7 @@ import android.text.InputFilter;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
 import android.text.method.ReplacementTransformationMethod;
+import android.view.View;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.EditText;
 import android.widget.TextView;
@@ -28,6 +30,7 @@ import java.util.TreeMap;
 
 public class MainActivity extends AppCompatActivity {
     static {
+        AppEnv.setInnerClassHelperLoopCheckingThreadFindEmptyListSleepDuration(100);
         JavaMemoryLeakFixer.startWatchJavaMemory();
         JavaMemoryLeakFixer.addWatchingClass(AccessibilityNodeInfo.class, new Watchable() {
             Class cls;
@@ -166,19 +169,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        AppEnv.setInnerClassHelperLoopCheckingThreadFindEmptyListSleepDuration(100);
-        final Runnable task = InnerClassHelper.createProxyInnerClassInstance(new Runnable() {
-            @Override
-            public void run() {
-                Log.e("test","test JavaMemoryLeakFixer");
-                try {
-                    finish();
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        new Thread(task).start();
+//        final Runnable task = InnerClassHelper.createProxyInnerClassInstance(new Runnable() {
+//            @Override
+//            public void run() {
+//                Log.e("test","test JavaMemoryLeakFixer");
+//                try {
+//                    finish();
+//                    Thread.sleep(5000);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+//            }
+//        });
+//        new Thread(task).start();
+    }
+
+    public void testHandleInnerClassInstanceTask(View v){
+        startActivity(new Intent(this,TestHandleInnerClassInstanceTaskActivity.class));
     }
 }

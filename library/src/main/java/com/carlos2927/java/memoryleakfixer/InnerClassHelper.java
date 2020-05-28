@@ -1167,7 +1167,7 @@ public class InnerClassHelper {
     public static boolean handleInnerClassInstanceTask(InnerClassTarget innerClassTarget,Runnable task){
         Object innerClassInstance = innerClassTarget.getInnerClassInstance();
         if(innerClassInstance != null){
-            synchronized (innerClassInstance){
+            synchronized (innerClassTarget){
                 if(innerClassTarget.getInnerClassInstance() != null){
                     task.run();
                     return true;
@@ -1215,7 +1215,7 @@ public class InnerClassHelper {
     public static boolean handleInnerClassInstanceTaskThrowException(InnerClassTarget innerClassTarget,ThrowExceptionTask task) throws InnerClassTargetWrapperException{
         Object innerClassInstance = innerClassTarget.getInnerClassInstance();
         if(innerClassInstance != null){
-            synchronized (innerClassInstance){
+            synchronized (innerClassTarget){
                 if(innerClassTarget.getInnerClassInstance() != null){
                    try{
                        task.call();
@@ -1463,9 +1463,12 @@ public class InnerClassHelper {
         ImplicitReferenceChecker implicitReferenceChecker;
         Runnable delayTask;
         Object lifeCycleObject;
+        public static boolean isTest = false;
+        private String innerClassInstanceId;
         @Keep
         public SimpleInnerClassProxyClassForRunnable(Runnable innerClassInstance){
             this.innerClassInstance = innerClassInstance;
+            innerClassInstanceId = String.format("%s@%d",innerClassInstance.getClass(),innerClassInstance.hashCode());
         }
 
         boolean isNeedClearInnerClassInstanceImplicitReferences;
@@ -1540,13 +1543,15 @@ public class InnerClassHelper {
 
         @Override
         public void run() {
-            if(handleInnerClassInstanceTask(this, new Runnable() {
+            if(!handleInnerClassInstanceTask(this, new Runnable() {
                 @Override
                 public void run() {
                     innerClassInstance.run();
                 }
             })){
-                Log.w(TAG,"innerClassInstance已被清空");
+                if(isTest){
+                    Log.w(TAG,"innerClassInstance已被清空: "+innerClassInstanceId);
+                }
             }
         }
     }
@@ -1567,6 +1572,7 @@ public class InnerClassHelper {
         public SimpleInnerClassProxyClassForHandler(Handler innerClassInstance){
             super(innerClassInstance.getLooper());
             this.innerClassInstance = innerClassInstance;
+
         }
 
         boolean isNeedClearInnerClassInstanceImplicitReferences;
