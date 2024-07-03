@@ -580,6 +580,9 @@ public class InnerClassHelper {
             List<Field> syntheticFieldsFields = getSyntheticFields(targetClass);
             if(syntheticFieldsFields != null){
                 for(Field field:syntheticFieldsFields){
+                    if(field.getType().isPrimitive()){
+                        continue;
+                    }
                     try{
                         field.setAccessible(true);
                         if(implicitReferenceChecker == null || implicitReferenceChecker.isNeedFilter(field,innerClassInstance)){
