@@ -25,11 +25,11 @@ import java.util.HashMap;
 import java.util.List;
 
 /**
- * 匿名内部类工具类，主要解决匿名内部类对象隐式引用外部类对象而引发的内存泄漏问题,需要注册匿名内部类代理类  
- * 已经实现的默认匿名内部类代理类有：                                                                
- * @see SimpleInnerClassProxyClassForRunnable Runnable接口的代理类                                 
- * @see SimpleInnerClassProxyClassForHandler Handler类的代理类                                    
- * @see SimpleInnerClassProxyClassForBroadcastReceiver BroadcastReceiver接口的代理类              
+ * 匿名内部类工具类，主要解决匿名内部类对象隐式引用外部类对象而引发的内存泄漏问题,需要注册匿名内部类代理类
+ * 已经实现的默认匿名内部类代理类有：
+ * @see SimpleInnerClassProxyClassForRunnable Runnable接口的代理类
+ * @see SimpleInnerClassProxyClassForHandler Handler类的代理类
+ * @see SimpleInnerClassProxyClassForBroadcastReceiver BroadcastReceiver接口的代理类
  */
 public class InnerClassHelper {
     ////www.jianshu.com/p/9335c15c43cf
@@ -142,6 +142,7 @@ public class InnerClassHelper {
                     int count = 0;
                     int InnerClassHelperLoopCheckingThread_FindEmptyDuration = AppEnv.InnerClassHelperLoopCheckingThread_FindEmptyDuration;
                     for(;isRunning;){
+                        WeakReference<InnerClassTarget>[] InnerClassTargetArray = null;
                         synchronized(lock){
                             if(InnerClassTargetList.isEmpty()){
                                 if(count%60==0){
@@ -157,9 +158,12 @@ public class InnerClassHelper {
                             if(!isRunning){
                                 break;
                             }
+                            InnerClassTargetArray = InnerClassTargetList.toArray(new WeakReference[]{});
+                        }
+                        if(InnerClassTargetArray != null){
                             //first,try to release all the instances of innerclass
                             try {
-                                for(WeakReference<InnerClassTarget> innerClassTargetWeakReference:InnerClassTargetList){
+                                for(WeakReference<InnerClassTarget> innerClassTargetWeakReference:InnerClassTargetArray){
                                     if(innerClassTargetWeakReference.get() == null){
                                         innerClassTargetWeakReference.clear();
                                         toDelete.add(innerClassTargetWeakReference);
@@ -209,7 +213,9 @@ public class InnerClassHelper {
 
                             int size = toDelete.size();
                             if(size>0){
-                                InnerClassTargetList.removeAll(toDelete);
+                                synchronized (lock){
+                                    InnerClassTargetList.removeAll(toDelete);
+                                }
                                 toDelete.clear();
                                 Log.d(TAG,String.format("%s[@%x] InnerClassTargetList size: %d,cleared: %d",getName(),hashCode,InnerClassTargetList.size(),size));
                             }
@@ -228,16 +234,18 @@ public class InnerClassHelper {
                             }else {
                                 break;
                             }
+                        }
+                        synchronized (lock){
                             try {
                                 //sleep ...
                                 lock.wait(InnerClassHelperLoopCheckingThread_FindEmptyDuration*2);
                             } catch (InterruptedException e) {
                                 e.printStackTrace();
                             }
-                            count++;
-                            if(count == Integer.MAX_VALUE){
-                                count = 0;
-                            }
+                        }
+                        count++;
+                        if(count == Integer.MAX_VALUE){
+                            count = 0;
                         }
                     }
                     Log.i(TAG,String.format("%s[@%x] stopped",getName(),hashCode));
@@ -366,42 +374,42 @@ public class InnerClassHelper {
         Class<? extends InnerClassTarget<T>> proxyClass = proxyClassMap.get(innerClassInstanceClass.getName());
         if(proxyClass!= null && lifeCycleObject != null){
             try {
-             T   proxyInnerClassInstance = getProxyInnerClassInstance(innerClassInstanceClass,proxyClass,innerClassInstance);
-             if(proxyInnerClassInstance != null){
-                 if(!InnerClassTarget.class.isInstance(proxyInnerClassInstance)){
-                     return innerClassInstance;
-                 }
+                T   proxyInnerClassInstance = getProxyInnerClassInstance(innerClassInstanceClass,proxyClass,innerClassInstance);
+                if(proxyInnerClassInstance != null){
+                    if(!InnerClassTarget.class.isInstance(proxyInnerClassInstance)){
+                        return innerClassInstance;
+                    }
 
-                 final InnerClassTarget<T> innerClassTarget = (InnerClassTarget<T>) proxyInnerClassInstance;
-                 innerClassTarget.setIsNeedClearInnerClassInstanceImplicitReferences(false);
-                 if(lifeCycleObjectChecker == null){
-                     lifeCycleObjectChecker = DefaultImplicitReferenceChecker;
-                 }
-                 innerClassTarget.setImplicitReferenceChecker(lifeCycleObjectChecker);
-                 if(LifeCycleObjectDirectGetter.class.isInstance(proxyInnerClassInstance)){
-                     LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter = (LifeCycleObjectDirectGetter) proxyInnerClassInstance;
-                     lifeCycleObjectDirectGetter._setLifeCycleObject(lifeCycleObject);
-                 }else {
-                     return innerClassInstance;
-                 }
-                 if(isDelayCheck){
-                     innerClassTarget.setDelayCheckTask(new Runnable() {
-                         @Override
-                         public void run() {
-                             synchronized(lock){
-                                 InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
-                                 lock.notifyAll();
-                             }
-                         }
-                     });
-                 }else {
-                     synchronized(lock){
-                         InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
-                         lock.notifyAll();
-                     }
-                 }
-                 return proxyInnerClassInstance;
-             }
+                    final InnerClassTarget<T> innerClassTarget = (InnerClassTarget<T>) proxyInnerClassInstance;
+                    innerClassTarget.setIsNeedClearInnerClassInstanceImplicitReferences(false);
+                    if(lifeCycleObjectChecker == null){
+                        lifeCycleObjectChecker = DefaultImplicitReferenceChecker;
+                    }
+                    innerClassTarget.setImplicitReferenceChecker(lifeCycleObjectChecker);
+                    if(LifeCycleObjectDirectGetter.class.isInstance(proxyInnerClassInstance)){
+                        LifeCycleObjectDirectGetter lifeCycleObjectDirectGetter = (LifeCycleObjectDirectGetter) proxyInnerClassInstance;
+                        lifeCycleObjectDirectGetter._setLifeCycleObject(lifeCycleObject);
+                    }else {
+                        return innerClassInstance;
+                    }
+                    if(isDelayCheck){
+                        innerClassTarget.setDelayCheckTask(new Runnable() {
+                            @Override
+                            public void run() {
+                                synchronized(lock){
+                                    InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
+                                    lock.notifyAll();
+                                }
+                            }
+                        });
+                    }else {
+                        synchronized(lock){
+                            InnerClassTargetList.add(new WeakReference<InnerClassTarget>(innerClassTarget));
+                            lock.notifyAll();
+                        }
+                    }
+                    return proxyInnerClassInstance;
+                }
             } catch (Exception e) {
 
             }
@@ -409,7 +417,7 @@ public class InnerClassHelper {
         return innerClassInstance;
     }
 
-   /**
+    /**
      * 创建匿名内部类对象的代理类对象
      * @param lifeCycleObject 要监控的有生命周期的对象
      * @param isNeedClearInnerClassInstanceImplicitReferences 判断当匿名内部类对象在其代理类中清空时是否要清空匿名内部类对象的隐式引用,当匿名内部对象自身存在耗时操作时建议清空其隐式引用，以防出现内存泄漏。
@@ -1220,17 +1228,17 @@ public class InnerClassHelper {
         if(innerClassInstance != null){
             synchronized (innerClassTarget){
                 if(innerClassTarget.getInnerClassInstance() != null){
-                   try{
-                       task.call();
-                   }
-                   catch (RuntimeException e){
-                       throw e;
-                   }catch (Error e){
-                       throw e;
-                   }
-                   catch (Throwable e){
-                       throw new InnerClassTargetWrapperException(e);
-                   }
+                    try{
+                        task.call();
+                    }
+                    catch (RuntimeException e){
+                        throw e;
+                    }catch (Error e){
+                        throw e;
+                    }
+                    catch (Throwable e){
+                        throw new InnerClassTargetWrapperException(e);
+                    }
                     return true;
                 }else {
                     return false;
@@ -1759,12 +1767,122 @@ public class InnerClassHelper {
         }
     }
 
+    /**
+     * 用于有参回调函数
+     * @param <T>
+     */
+    public static interface Callback<T>{
+        void call(String action,T data);
+    }
+    /**
+     * Callback的简单的匿名内部类代理类
+     */
+    @Keep
+    public static class SimpleInnerClassProxyClassForCallback<T> implements Callback<T>,InnerClassTarget<Callback<T>>,LifeCycleObjectDirectGetter {
+        volatile Callback<T> innerClassInstance;
+        List<Field> fields;
+        ImplicitReferenceChecker implicitReferenceChecker;
+        Runnable delayTask;
+        Object lifeCycleObject;
+        public static boolean isTest = false;
+        private String innerClassInstanceId;
+        @Keep
+        public SimpleInnerClassProxyClassForCallback(Callback<T> innerClassInstance){
+            this.innerClassInstance = innerClassInstance;
+            innerClassInstanceId = String.format("%s@%d",innerClassInstance.getClass(),innerClassInstance.hashCode());
+        }
+
+        boolean isNeedClearInnerClassInstanceImplicitReferences;
+        @Override
+        public boolean isNeedClearInnerClassInstanceImplicitReferences() {
+            return isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public void setIsNeedClearInnerClassInstanceImplicitReferences(boolean isNeedClearInnerClassInstanceImplicitReferences) {
+            this.isNeedClearInnerClassInstanceImplicitReferences = isNeedClearInnerClassInstanceImplicitReferences;
+        }
+
+        @Override
+        public Callback<T> getInnerClassInstance() {
+            return innerClassInstance;
+        }
+
+        @Override
+        public void clearInnerClassInstance() {
+            innerClassInstance = null;
+            fields = null;
+            implicitReferenceChecker = null;
+            lifeCycleObject = null;
+        }
+
+        @Override
+        public void setImplicitReferenceFields(List<Field> fields) {
+            this.fields = fields;
+        }
+
+        @Override
+        public List<Field> getImplicitReferenceFields() {
+            return fields;
+        }
+
+        @Override
+        public void setImplicitReferenceChecker(ImplicitReferenceChecker implicitReferenceChecker) {
+            this.implicitReferenceChecker = implicitReferenceChecker;
+        }
+
+
+        @Override
+        public ImplicitReferenceChecker getImplicitReferenceChecker() {
+            return implicitReferenceChecker;
+        }
+
+        @Override
+        public void setDelayCheckTask(Runnable delayTask) {
+            this.delayTask = delayTask;
+        }
+
+        @Override
+        public void notifyNeedCheck() {
+            //保证延迟检测任务只执行一次
+            if(delayTask != null){
+                delayTask.run();
+                delayTask = null;
+            }
+        }
+
+
+        @Override
+        public Object _getLifeCycleObject() {
+            return lifeCycleObject;
+        }
+
+        @Override
+        public void _setLifeCycleObject(Object lifeCycleObject) {
+            this.lifeCycleObject = lifeCycleObject;
+        }
+
+        @Override
+        public void call(String action, T data) {
+            if(!handleInnerClassInstanceTask(this, new Runnable() {
+                @Override
+                public void run() {
+                    innerClassInstance.call(action,data);
+                }
+            })){
+                if(isTest){
+                    Log.w(TAG,"innerClassInstance已被清空: "+innerClassInstanceId);
+                }
+            }
+        }
+    }    
+
     static {
         if(AppEnv.IsInAndroidPlatform){
             registerSupperClassOfInnerClassProxyClass(SimpleInnerClassProxyClassForBroadcastReceiver.class);
             registerSupperClassOfInnerClassProxyClass(SimpleInnerClassProxyClassForHandler.class);
         }
         registerSupperClassOfInnerClassProxyClass(SimpleInnerClassProxyClassForRunnable.class);
+        registerSupperClassOfInnerClassProxyClass(SimpleInnerClassProxyClassForCallback.class);
     }
-
 }
