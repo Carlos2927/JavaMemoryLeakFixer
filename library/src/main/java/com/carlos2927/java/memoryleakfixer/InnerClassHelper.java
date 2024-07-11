@@ -1863,7 +1863,7 @@ public class InnerClassHelper {
         }
 
         @Override
-        public void call(final String action, T data) {
+        public void call(final String action,final T data) {
             if(!handleInnerClassInstanceTask(this, new Runnable() {
                 @Override
                 public void run() {
