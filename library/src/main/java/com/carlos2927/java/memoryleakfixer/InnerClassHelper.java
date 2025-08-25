@@ -266,7 +266,7 @@ public class InnerClassHelper {
     }
 
 
-    public static listenInnerClassTarget(InnerClassTarget innerClassTarget,OnInnerClassTargetListener listener){
+    public static void listenInnerClassTarget(InnerClassTarget innerClassTarget,OnInnerClassTargetListener listener){
         InnerClassTargetListeners.put(innerClassTarget,listener);
     }
 
