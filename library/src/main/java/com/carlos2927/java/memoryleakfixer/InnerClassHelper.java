@@ -43,6 +43,8 @@ public class InnerClassHelper {
             return 1;
         }
     };
+
+    private static final HashMap<InnerClassTarget,OnInnerClassTargetListener> InnerClassTargetListeners = new HashMap<>();
     private static final List<WeakReference<InnerClassTarget>> InnerClassTargetList = new ArrayList<>(64);
     private static boolean isRunning = false;
     private static final Object lock = new Object();
@@ -181,6 +183,7 @@ public class InnerClassHelper {
                                                             clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
                                                         }
                                                         innerClassTarget.clearInnerClassInstance();
+                                                        onClearInnerClassInstance(innerClassTarget);
                                                     }
                                                     innerClassTargetWeakReference.clear();
                                                     continue;
@@ -194,6 +197,7 @@ public class InnerClassHelper {
                                                             clearInnerClassInstanceImplicitReferencesWhenClear(innerClassTarget,innerClassInstance);
                                                         }
                                                         innerClassTarget.clearInnerClassInstance();
+                                                        onClearInnerClassInstance(innerClassTarget);
                                                     }
                                                     innerClassTargetWeakReference.clear();
                                                 }
@@ -201,6 +205,7 @@ public class InnerClassHelper {
                                         }else {
                                             synchronized (innerClassTarget){
                                                 innerClassTarget.clearInnerClassInstance();
+                                                onClearInnerClassInstance(innerClassTarget);
                                             }
                                             toDelete.add(innerClassTargetWeakReference);
                                             innerClassTargetWeakReference.clear();
@@ -261,6 +266,16 @@ public class InnerClassHelper {
     }
 
 
+    public static listenInnerClassTarget(InnerClassTarget innerClassTarget,OnInnerClassTargetListener listener){
+        InnerClassTargetListeners.put(innerClassTarget,listener);
+    }
+
+    private static void onClearInnerClassInstance(InnerClassTarget innerClassTarget){
+        OnInnerClassTargetListener listener = InnerClassTargetListeners.remove(innerClassTarget);
+        if(listener != null){
+            listener.onClearInnerClassInstance(innerClassTarget);
+        }
+    }
 
     public  static <T> T createProxyInnerClassInstance(T innerClassInstance){
         return createProxyInnerClassInstance(innerClassInstance,DefaultImplicitReferenceChecker);
@@ -1101,6 +1116,10 @@ public class InnerClassHelper {
          * @param lifeCycleObject 生命周期对象
          */
         void _setLifeCycleObject(Object lifeCycleObject);
+    }
+
+    public interface OnInnerClassTargetListener{
+        void onClearInnerClassInstance(InnerClassHelper.InnerClassTarget innerClassTarget);
     }
 
     /**
